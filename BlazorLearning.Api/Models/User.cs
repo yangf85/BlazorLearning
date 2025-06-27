@@ -1,27 +1,32 @@
-﻿// Models/User.cs
+﻿using FreeSql.DataAnnotations;
 using System.ComponentModel.DataAnnotations;
 
-namespace BlazorLearning.Api.Models
+namespace BlazorLearning.Api.Models;
+
+[Table(Name = "users")]
+public class User
 {
-    public class User
-    {
-        public int Id { get; set; }
+    [Column(IsIdentity = true, IsPrimary = true)]
+    public int Id { get; set; }
 
-        [Required]
-        [StringLength(50)]
-        public string UserName { get; set; } = string.Empty;
+    [Column(StringLength = 100)]
+    [Required(ErrorMessage = "用户名不能为空")]
+    public string Username { get; set; } = string.Empty;
 
-        [Required]
-        [EmailAddress]
-        public string Email { get; set; } = string.Empty;
+    [Column(StringLength = 255)]
+    [Required(ErrorMessage = "邮箱不能为空")]
+    [EmailAddress(ErrorMessage = "邮箱格式不正确")]
+    public string Email { get; set; } = string.Empty;
 
-        [StringLength(100)]
-        public string FullName { get; set; } = string.Empty;
+    [Column(StringLength = 100)]
+    public string? FullName { get; set; }
 
-        public bool IsActive { get; set; } = true;
+    [Column]
+    public bool IsActive { get; set; } = true;
 
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    [Column]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        public DateTime? UpdatedAt { get; set; }
-    }
+    [Column]
+    public DateTime? UpdatedAt { get; set; }
 }
