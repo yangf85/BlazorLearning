@@ -1,5 +1,12 @@
 using BlazorLearning.Api.Extensions;
+using BlazorLearning.Api.Middleware;
+using BlazorLearning.Api.Models;
+using BlazorLearning.Shared.Extensions;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,10 +16,48 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+builder.Services.AddSerilogServices(); // 添加 Serilog 服务
+builder.Host.UseSerilog();
+
+builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+
+//获取Jwt配置
+var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtSettings.Issuer,
+        ValidAudience = jwtSettings.Audience,
+        IssuerSigningKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
+        ClockSkew = TimeSpan.Zero,
+    };
+});
+
+builder.Services.AddAuthentication();
+
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    // 禁用默认的模型验证错误响应
+    options.SuppressModelStateInvalidFilter = true;
+});
+
 //添加FreeSql服务
 builder.Services.AddFreeSqlService(builder.Configuration);
 
 var app = builder.Build();
+
+app.UseMiddleware<GlobalExceptionMiddleware>(); // 添加全局异常处理中间件
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -34,6 +79,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication(); // 使用身份验证中间件
 app.UseAuthorization();
 
 app.MapControllers();

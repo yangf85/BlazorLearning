@@ -1,4 +1,5 @@
-﻿using BlazorLearning.Api.Services;
+﻿using BlazorLearning.Api.Models;
+using BlazorLearning.Api.Services;
 using Npgsql;
 
 namespace BlazorLearning.Api.Extensions;
@@ -13,6 +14,11 @@ public static class ServiceCollectionExtensions
             .UseMonitorCommand(cmd => Console.WriteLine($"执行 SQL: {cmd.CommandText}"))
             .UseAutoSyncStructure(true) // 自动同步数据库结构
             .Build();
+
+        fsql.CodeFirst.SyncStructure<User>();
+        fsql.CodeFirst.SyncStructure<UserRole>();
+        fsql.CodeFirst.SyncStructure<Role>();
+        fsql.CodeFirst.SyncStructure<RolePermission>();
 
         services.AddSingleton(fsql);
 
