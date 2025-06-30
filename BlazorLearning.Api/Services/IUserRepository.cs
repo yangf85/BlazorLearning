@@ -28,4 +28,8 @@ public interface IUserRepository
     /// 删除用户
     /// </summary>
     Task<bool> DeleteUserAsync(int id);
+
+    Task<User?> GetByUsernameAsync(string username);
+
+    Task<User?> GetByEmailAsync(string email);
 }

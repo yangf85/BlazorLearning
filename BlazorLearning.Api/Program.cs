@@ -1,6 +1,7 @@
 using BlazorLearning.Api.Extensions;
 using BlazorLearning.Api.Middleware;
 using BlazorLearning.Api.Models;
+using BlazorLearning.Api.Services;
 using BlazorLearning.Shared.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
@@ -20,6 +21,8 @@ builder.Services.AddSerilogServices(); // 添加 Serilog 服务
 builder.Host.UseSerilog();
 
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+
+builder.Services.AddScoped<IJwtService, JwtService>(); // 添加 JWT 服务
 
 //获取Jwt配置
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();

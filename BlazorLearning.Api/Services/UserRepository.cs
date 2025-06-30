@@ -61,4 +61,20 @@ public class UserRepository : IUserRepository
 
         return affectedRows > 0;
     }
+
+    public Task<User?> GetByUsernameAsync(string username)
+    {
+        var user = _freeSql.Select<User>()
+            .Where(u => u.Username == username && u.IsActive)
+            .FirstAsync();
+        return user;
+    }
+
+    public Task<User?> GetByEmailAsync(string email)
+    {
+        var user = _freeSql.Select<User>()
+            .Where(u => u.Email == email && u.IsActive)
+            .FirstAsync();
+        return user;
+    }
 }
