@@ -17,10 +17,9 @@ public class RolePermission
     [Column]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // 导航属性
-    [Navigate(nameof(RoleId))]
-    public virtual Role Role { get; set; } = null!;
+    //[Navigate(nameof(RoleId))]
+    //public virtual Role Role { get; set; } = null!;
 
-    [Navigate(nameof(PermissionId))]
-    public virtual Permission Permission { get; set; } = null!;
+    //[Navigate(nameof(PermissionId))]
+    //public virtual Permission Permission { get; set; } = null!;
 }

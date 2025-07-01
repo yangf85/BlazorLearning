@@ -115,7 +115,7 @@ createdb blazorlearning
 // appsettings.json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Database=blazorlearning;Username=postgres;Password=your_password"
+    "DefaultConnection": "Host=localhost;Database=blazorlearning;Username=postgres;Password=123456"
   }
 }
 ```

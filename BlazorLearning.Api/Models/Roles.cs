@@ -1,9 +1,11 @@
 ﻿using FreeSql.DataAnnotations;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace BlazorLearning.Api.Models;
 
 [Table(Name = "roles")]
+[Index("idx_roles_name", "Name", true)] // 角色名唯一索引
 public class Role
 {
     [Column(IsIdentity = true, IsPrimary = true)]
@@ -28,4 +30,14 @@ public class Role
 
     [Column]
     public DateTime? UpdatedAt { get; set; }
+
+    //[Navigate(ManyToMany = typeof(UserRole))]
+    //public virtual ICollection<User> Users { get; set; } = [];
+
+    //[Navigate(ManyToMany = typeof(RolePermission))]
+    //public virtual ICollection<Permission> Permissions { get; set; } = [];
+
+    //public virtual ICollection<UserRole> UserRoles { get; set; } = [];
+
+    //public virtual ICollection<RolePermission> RolePermissions { get; set; } = [];
 }

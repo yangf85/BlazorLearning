@@ -17,10 +17,9 @@ public class UserRole
     [Column]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // 导航属性
-    [Navigate(nameof(UserId))]
-    public virtual User User { get; set; } = null!;
+    //[Navigate(nameof(UserId))]
+    //public virtual User User { get; set; } = null!;
 
-    [Navigate(nameof(RoleId))]
-    public virtual Role Role { get; set; } = null!;
+    //[Navigate(nameof(RoleId))]
+    //public virtual Role Role { get; set; } = null!;
 }

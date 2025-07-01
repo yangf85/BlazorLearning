@@ -1,5 +1,5 @@
 ﻿using BlazorLearning.Api.Models;
-using BlazorLearning.Api.Services;
+using BlazorLearning.Api.Repositories;
 using BlazorLearning.Shared.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

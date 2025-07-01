@@ -6,45 +6,42 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 
-namespace BlazorLearning.Api.Services
+namespace BlazorLearning.Api.Services;
+
+public class JwtService : IJwtService
 {
-    public class JwtService : IJwtService
+    private readonly JwtSettings _jwtSettings;
+
+    public JwtService(IOptions<JwtSettings> jwtSettings)
     {
-        private readonly JwtSettings _jwtSettings;
+        _jwtSettings = jwtSettings.Value;
+    }
 
-        public JwtService(IOptions<JwtSettings> jwtSettings)
+    public string GenerateToken(User user)
+    {
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
         {
-            _jwtSettings = jwtSettings.Value;
-        }
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Name, user.Username),
+            new Claim(ClaimTypes.Email, user.Email),
+        };
 
-        public string GenerateToken(User user)
-        {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
-            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var token = new JwtSecurityToken(
+            issuer: _jwtSettings.Issuer,
+            audience: _jwtSettings.Audience,
+            claims: claims,
+            expires: GetTokenExpiry(),
+            signingCredentials: credentials
+        );
 
-            var claims = new[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim("userId", user.Id.ToString()),
-                new Claim("username", user.Username)
-            };
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
 
-            var token = new JwtSecurityToken(
-                issuer: _jwtSettings.Issuer,
-                audience: _jwtSettings.Audience,
-                claims: claims,
-                expires: GetTokenExpiry(),
-                signingCredentials: credentials
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
-        }
-
-        public DateTime GetTokenExpiry()
-        {
-            return DateTime.UtcNow.AddHours(_jwtSettings.ExpireHours);
-        }
+    public DateTime GetTokenExpiry()
+    {
+        return DateTime.UtcNow.AddHours(_jwtSettings.ExpireHours);
     }
 }

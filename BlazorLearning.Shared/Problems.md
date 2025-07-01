@@ -9,6 +9,7 @@
 - [Day 3 问题](#day-3-问题汇总-2025年6月29日) - 数据验证和错误处理
 - [Day 4 问题](#day-4-问题汇总-2025年6月29日) - 认证准备和配置
 - [Day 5 问题](#day-5-问题汇总-2025年6月30日) - JWT认证实现
+- [Day 6 问题](#day-6-问题汇总-2025年7月1日) - 角色管理和Mapster集成
 
 ## Day 1 问题汇总（2025年6月26日）
 
@@ -537,6 +538,12 @@ Scalar中添加Authorization头的步骤：
 4. Value: `Bearer [JWT Token]`
 5. 点击Send发送请求
 
+**测试所用的Key和Value示例**：
+
+- admin 用户的JWT Token示例：
+- key: Authorization
+- value: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjgiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiYWRtaW4iLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9lbWFpbGFkZHJlc3MiOiJhZG1pbkBleGFtcGxlLmNvbSIsImV4cCI6MTc1MTQ1OTk1MywiaXNzIjoiQmxhem9yTGVhcm5pbmcuQXBpIiwiYXVkIjoiQmxhem9yTGVhcm5pbmcuQ2xpZW50In0.ZJt9J-vqQmskJnUs_UUkNR-ZNq6pNEXJ6i4Y6gp-p6w
+
 **注意事项**：
 - Bearer前缀必须包含且大小写正确
 - Bearer和Token之间必须有空格
@@ -550,11 +557,4 @@ Scalar中添加Authorization头的步骤：
 - 前端如何携带认证信息访问API
 
 ### 6. 返回值封装的架构设计讨论
-
-**问题描述**：用户询问"控制器的返回结果有没有办法再次封装？"，希望简化返回值的重复代码
-
-**解决方案**：
-探讨了三种封装方案：
-
-**方案对比**：
-- **原始版本**：`ApiResponse<T>.
+**问

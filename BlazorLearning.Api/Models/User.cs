@@ -1,15 +1,18 @@
 ﻿using FreeSql.DataAnnotations;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace BlazorLearning.Api.Models;
 
 [Table(Name = "users")]
+[Index("idx_users_username", "Username", true)] // 用户名唯一索引
+[Index("idx_users_email", "Email", true)]       // 邮箱唯一索引
 public class User
 {
     [Column(IsIdentity = true, IsPrimary = true)]
     public int Id { get; set; }
 
-    [Column(StringLength = 50)]  // 改为50，和验证保持一致
+    [Column(StringLength = 50)]
     [Required(ErrorMessage = "用户名不能为空")]
     [StringLength(50, MinimumLength = 2, ErrorMessage = "用户名长度必须在2到50个字符之间")]
     public string Username { get; set; } = string.Empty;
@@ -33,4 +36,8 @@ public class User
 
     [Column]
     public DateTime? UpdatedAt { get; set; }
+
+    //public virtual ICollection<Role> Roles { get; set; } = new List<Role>();
+
+    //public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }
