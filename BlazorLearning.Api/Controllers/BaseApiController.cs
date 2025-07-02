@@ -1,11 +1,27 @@
 ﻿using BlazorLearning.Api.Models;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace BlazorLearning.Api.Controllers
 {
     [ApiController]
     public class BaseApiController : ControllerBase
     {
+        protected int? GetCurrentUserId()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            {
+                return null;
+            }
+            return userId;
+        }
+
+        protected string GetCurrentUsername()
+        {
+            return User.FindFirst(ClaimTypes.Name)?.Value;
+        }
+
         protected IActionResult ApiOk<T>(T data, string message = "操作成功")
         {
             return base.Ok(ApiResponse<T>.SuccessResult(data, message));

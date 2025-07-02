@@ -539,7 +539,6 @@ Scalar中添加Authorization头的步骤：
 5. 点击Send发送请求
 
 **测试所用的Key和Value示例**：
-
 - admin 用户的JWT Token示例：
 - key: Authorization
 - value: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6IjgiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiYWRtaW4iLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9lbWFpbGFkZHJlc3MiOiJhZG1pbkBleGFtcGxlLmNvbSIsImV4cCI6MTc1MTQ1OTk1MywiaXNzIjoiQmxhem9yTGVhcm5pbmcuQXBpIiwiYXVkIjoiQmxhem9yTGVhcm5pbmcuQ2xpZW50In0.ZJt9J-vqQmskJnUs_UUkNR-ZNq6pNEXJ6i4Y6gp-p6w
@@ -557,4 +556,443 @@ Scalar中添加Authorization头的步骤：
 - 前端如何携带认证信息访问API
 
 ### 6. 返回值封装的架构设计讨论
-**问
+
+**问题描述**：用户询问是否需要对所有接口返回值进行统一封装
+
+**解决方案**：
+权衡统一封装的利弊：
+- **优势**：前端处理一致、错误处理统一、扩展性好
+- **劣势**：增加代码复杂度、可能过度设计
+- **决策**：在学习阶段优先选择简单直接的方式
+- **建议**：核心业务接口使用封装，测试接口可以直接返回
+
+**学习要点**：
+- 架构设计要考虑当前阶段的复杂度
+- 不要为了完美而影响学习进度
+- 理解封装的价值和成本
+- 渐进式架构演进的思路
+
+## Day 6 问题汇总（2025年7月1日）
+
+### 1. Mapster对象映射的配置和使用
+
+**问题描述**：如何正确配置和使用Mapster进行对象映射，避免过度配置
+
+**解决方案**：
+- 安装`Mapster`和`Mapster.DependencyInjection`包
+- 在Program.cs中简单注册：`builder.Services.AddMapster()`
+- 利用Mapster的约定优于配置：属性名相同自动映射
+- 避免复杂的映射配置，优先使用默认行为
+
+**最佳实践**：
+```csharp
+// 简单直接的映射
+var roleDto = role.Adapt<RoleDto>();
+var roles = roleList.Adapt<List<RoleDto>>();
+```
+
+**学习要点**：
+- Mapster的零配置哲学和自动映射能力
+- 约定优于配置在对象映射中的应用
+- 避免过早优化和过度设计
+- 现代映射框架的使用思路
+
+### 2. OpenAPI循环引用问题
+
+**问题描述**：添加导航属性后OpenAPI文档生成出现循环引用错误
+
+**错误现象**：
+```
+System.Text.Json.JsonException: A possible object cycle was detected
+```
+
+**解决方案**：
+- 理解循环引用产生的原因：User.Roles → Role.Users → User.Roles...
+- OpenAPI文档生成时会序列化实体关系，导致无限循环
+- 解决方案：在DTO中避免双向导航属性
+- 使用单向引用或者在需要时按需查询
+
+**学习要点**：
+- 对象关系映射中循环引用的常见问题
+- API文档生成的内部机制
+- DTO设计应该避免复杂的双向关系
+- 实体模型和传输模型的职责分离
+
+### 3. FreeSql Repository模式的标准实现
+
+**问题描述**：如何正确实现FreeSql的Repository模式
+
+**解决方案**：
+- 继承`BaseRepository<TEntity>`获得基础CRUD功能
+- 在构造函数中传递`IFreeSql`实例
+- 扩展业务特定的方法，如`GetByNameAsync`
+- 使用FreeSql的查询语法进行复杂查询
+
+**标准模式**：
+```csharp
+public class RoleRepository : BaseRepository<Role>, IRoleRepository
+{
+    public RoleRepository(IFreeSql freeSql) : base(freeSql, null, null)
+    {
+    }
+    
+    public async Task<Role> GetByNameAsync(string name)
+    {
+        return await Select.Where(r => r.Name == name && r.IsActive).FirstAsync();
+    }
+}
+```
+
+**学习要点**：
+- Repository模式的标准实现方式
+- FreeSql BaseRepository的继承和扩展
+- 业务方法的命名约定和实现
+- 软删除过滤的统一处理
+
+### 4. 项目引用关系和模块分离
+
+**问题描述**：如何合理设计项目间的引用关系，实现清晰的模块分离
+
+**解决方案**：
+- `BlazorLearning.Shared`：存放DTO、共享服务接口
+- `BlazorLearning.Api`：存放实体、Repository、Controller
+- 引用关系：Api项目引用Shared项目，避免循环引用
+- 分离原则：数据传输对象vs业务实体的职责分离
+
+**架构设计**：
+```
+BlazorLearning.Api (实体、业务逻辑)
+    ↓ 引用
+BlazorLearning.Shared (DTO、接口)
+```
+
+**学习要点**：
+- 清晰的项目分层和引用关系
+- DTO和Entity的职责分离
+- 避免循环引用的设计原则
+- 共享代码的合理组织方式
+
+### 5. 软删除机制在Repository中的统一实现
+
+**问题描述**：如何在Repository中统一处理软删除逻辑
+
+**解决方案**：
+- 所有查询方法自动过滤`IsActive=false`的记录
+- 删除操作实际执行Update，设置`IsActive=false`
+- 提供专门的物理删除方法（如果需要）
+- 在BaseRepository级别统一处理
+
+**实现模式**：
+```csharp
+// 查询时自动过滤
+public async Task<List<Role>> GetAllAsync()
+{
+    return await Select.Where(r => r.IsActive).ToListAsync();
+}
+
+// 软删除
+public async Task<bool> DeleteAsync(int id)
+{
+    return await UpdateDiy.Set(r => r.IsActive, false)
+                          .Where(r => r.Id == id).ExecuteAffrowsAsync() > 0;
+}
+```
+
+**学习要点**：
+- 软删除的统一处理模式
+- 业务查询的一致性要求
+- 数据安全和可恢复性的平衡
+- Repository模式的扩展和定制
+
+## Day 7 问题汇总（2025年7月2日）
+
+### 1. 唯一约束与软删除的冲突问题
+
+**问题描述**：在实现ReplaceUserRolesAsync时遇到唯一约束冲突错误
+
+**错误信息**：
+```
+23505: duplicate key value violates unique constraint "idx_user_role_unique"
+```
+
+**问题分析**：
+- 原始唯一索引：`(UserId, RoleId)`
+- 软删除机制：设置`IsActive=false`而不是物理删除
+- 冲突原因：即使旧记录IsActive=false，唯一约束仍然生效
+- 替换操作：先UPDATE设置IsActive=false，再INSERT新记录，导致重复键冲突
+
+**解决方案**：
+修改唯一索引定义，包含IsActive字段：
+```csharp
+[Index("idx_user_role_unique", "UserId,RoleId,IsActive", true)]
+```
+
+**技术原理**：
+- 新索引：`(UserId, RoleId, IsActive)`的组合唯一
+- 允许同一用户角色组合有多条记录，但只能有一条IsActive=true
+- 支持软删除的历史记录保留
+
+**学习要点**：
+- 软删除机制与数据库约束的设计冲突
+- 复合唯一索引的灵活运用
+- 业务需求与技术约束的平衡
+- 数据库索引设计的最佳实践
+
+### 2. 事务处理在复杂业务操作中的应用
+
+**问题描述**：ReplaceUserRolesAsync需要确保原子性操作
+
+**业务需求**：
+- 清空用户现有角色（设置IsActive=false）
+- 分配新角色（INSERT新记录）
+- 整个过程必须原子性，要么全成功，要么全失败
+
+**解决方案**：
+```csharp
+using var transaction = Orm.Ado.TransactionCurrentThread;
+try
+{
+    // 清空现有角色
+    await UpdateDiy.Set(ur => ur.IsActive, false)...
+    
+    // 分配新角色
+    if (roleIds.Any())
+    {
+        await InsertAsync(userRoles);
+    }
+    
+    transaction?.Commit();
+    return true;
+}
+catch (Exception ex)
+{
+    transaction?.Rollback();
+    return false;
+}
+```
+
+**学习要点**：
+- 事务处理确保数据一致性的重要性
+- FreeSql事务的正确使用方式
+- 复杂业务操作的原子性设计
+- 错误处理和回滚机制
+
+### 3. BaseApiController的功能扩展
+
+**问题描述**：UserRoleController需要获取当前登录用户ID，但BaseApiController缺少此功能
+
+**错误信息**：
+```
+CS0103: 当前上下文中不存在名称"GetCurrentUserId"
+```
+
+**解决方案**：
+在BaseApiController中添加用户信息获取方法：
+```csharp
+protected int? GetCurrentUserId()
+{
+    var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+    {
+        return null;
+    }
+    return userId;
+}
+
+protected string GetCurrentUsername()
+{
+    return User.FindFirst(ClaimTypes.Name)?.Value;
+}
+```
+
+**设计考虑**：
+- 放在BaseApiController的原因：多个Controller都需要此功能
+- 使用protected访问修饰符：只允许子类访问
+- 返回可空类型：处理未登录或解析失败的情况
+- Claims解析：从JWT Token中提取用户信息
+
+**学习要点**：
+- 基类设计和功能复用的思路
+- JWT Claims的解析和使用
+- Controller基类的扩展模式
+- 面向对象继承的实际应用
+
+### 4. 复杂DTO体系的设计原则
+
+**问题描述**：用户角色分配涉及多种业务场景，需要设计合适的DTO类
+
+**业务场景分析**：
+- 角色分配请求：需要用户ID和角色ID列表
+- 角色取消请求：需要用户ID和要取消的角色ID列表
+- 角色替换请求：需要用户ID和新的角色ID列表
+- 用户角色查询：返回用户信息和角色列表
+- 角色用户查询：返回角色信息和用户列表
+- 分配详情查询：返回完整的审计信息
+
+**设计方案**：
+创建6个专门的DTO类：
+- `AssignRoleRequest` / `UnassignRoleRequest` / `ReplaceUserRolesRequest`
+- `UserRoleResponse` / `RoleUserResponse` / `UserRoleDetailResponse`
+- `RoleInfo` / `UserInfo` 作为辅助DTO
+
+**设计原则**：
+- 单一职责：每个DTO只服务一个具体场景
+- 语义清晰：从类名就能理解其用途
+- 避免过度复用：不要为了减少代码而牺牲清晰性
+- 扁平化设计：避免过深的嵌套结构
+
+**学习要点**：
+- DTO设计的单一职责原则
+- 业务场景驱动的接口设计
+- API可读性和可维护性的重要性
+- 前后端对接的标准化考虑
+
+### 5. 高性能批量操作的实现策略
+
+**问题描述**：用户角色分配可能涉及批量操作，需要考虑性能优化
+
+**性能挑战**：
+- 防重复分配：需要查询现有角色避免重复
+- 批量插入：一次分配多个角色
+- 关联查询：获取用户角色信息需要Join操作
+- 事务处理：确保批量操作的原子性
+
+**优化策略**：
+```csharp
+// 1. 防重复分配优化
+var existingRoles = await Select
+    .Where(ur => ur.UserId == userId && roleIds.Contains(ur.RoleId) && ur.IsActive)
+    .ToListAsync(ur => ur.RoleId);
+
+var newRoleIds = roleIds.Except(existingRoles).ToList();
+
+// 2. 批量插入优化
+var userRoles = newRoleIds.Select(roleId => new UserRole { ... }).ToList();
+await InsertAsync(userRoles);
+
+// 3. 关联查询优化
+var userWithRoles = await Select
+    .Include(ur => ur.User)
+    .Include(ur => ur.Role)
+    .Where(ur => ur.UserId == userId && ur.IsActive)
+    .ToListAsync();
+```
+
+**学习要点**：
+- 批量操作的性能优化思路
+- 防重复逻辑的高效实现
+- FreeSql Include的关联查询优化
+- 数据库操作的最佳实践
+
+### 6. Repository模式的企业级实现
+
+**问题描述**：如何实现企业级的Repository模式，包含完整的错误处理和日志记录
+
+**企业级特性**：
+- 完整的异常处理和日志记录
+- 标准的返回值设计（成功/失败状态）
+- 业务验证和数据完整性检查
+- 性能优化和资源管理
+
+**实现示例**：
+```csharp
+public async Task<bool> AssignRolesToUserAsync(int userId, List<int> roleIds, int assignedBy)
+{
+    try
+    {
+        // 业务验证
+        var existingRoles = await Select...
+        var newRoleIds = roleIds.Except(existingRoles).ToList();
+        
+        if (!newRoleIds.Any())
+        {
+            _logger.Information("用户 {UserId} 已拥有所有指定角色", userId);
+            return true;
+        }
+        
+        // 数据操作
+        var userRoles = newRoleIds.Select(...).ToList();
+        await InsertAsync(userRoles);
+        
+        // 成功日志
+        _logger.Information("成功为用户 {UserId} 分配 {Count} 个新角色", userId, newRoleIds.Count);
+        return true;
+    }
+    catch (Exception ex)
+    {
+        // 错误日志和处理
+        _logger.Error(ex, "为用户 {UserId} 分配角色失败", userId);
+        return false;
+    }
+}
+```
+
+**学习要点**：
+- 企业级代码的质量标准
+- 完整的错误处理和日志记录
+- 业务逻辑的健壮性设计
+- 可维护性和可调试性的重要性
+
+### 7. API接口的完整测试流程
+
+**问题描述**：如何系统性地测试复杂的用户角色分配API
+
+**测试策略**：
+1. **功能验证**：每个接口的基本功能是否正常
+2. **数据一致性**：操作后数据状态是否正确
+3. **边界条件**：空数据、重复操作等场景
+4. **错误处理**：异常情况的处理是否合理
+5. **性能测试**：批量操作的性能表现
+
+**实际测试流程**：
+```
+1. 角色分配 → 验证分配成功
+2. 用户角色查询 → 确认角色已分配
+3. 权限检查 → 验证用户确实拥有角色
+4. 角色用户查询 → 确认用户出现在角色列表中
+5. 分配详情查询 → 验证审计信息完整
+6. 角色取消 → 验证取消功能
+7. 角色替换 → 验证原子性操作
+```
+
+**测试数据设计**：
+- 使用真实的用户和角色数据
+- 覆盖单个和批量操作场景
+- 测试不同用户权限级别
+- 验证软删除机制
+
+**学习要点**：
+- 系统性测试的重要性
+- API测试的完整流程设计
+- 数据一致性验证的方法
+- 企业级系统的质量保证
+
+### 8. 问题排查和调试技巧
+
+**问题描述**：在遇到唯一约束冲突时，如何快速定位和解决问题
+
+**排查步骤**：
+1. **查看完整错误日志**：包含SQL语句和异常堆栈
+2. **分析业务逻辑**：理解操作的执行顺序
+3. **检查数据库状态**：查看实际的数据和约束
+4. **理解框架行为**：FreeSql的自动行为和配置
+5. **设计解决方案**：从根本上解决问题
+
+**错误日志分析**：
+```
+System.Exception: 23505: duplicate key value violates unique constraint "idx_user_role_unique"
+```
+- 错误码23505：PostgreSQL唯一约束冲突
+- 约束名称：idx_user_role_unique
+- 操作：INSERT INTO user_roles
+
+**解决思路**：
+- 问题根源：软删除与唯一约束的设计冲突
+- 解决方案：修改约束定义包含IsActive字段
+- 验证修复：重新测试相同操作
+
+**学习要点**：
+- 系统性的问题排查方法
+- 日志分析和错误诊断技巧
+- 数据库约束和ORM框架的交互
+- 解决方案的设计和验证
