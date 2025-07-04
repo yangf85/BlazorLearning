@@ -5,7 +5,7 @@ namespace BlazorLearning.Api.Services
 {
     public interface IJwtService
     {
-        string GenerateToken(User user);
+        Task<string> GenerateTokenAsync(User user); // 改为异步方法
 
         DateTime GetTokenExpiry();
     }

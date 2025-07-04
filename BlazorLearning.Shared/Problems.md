@@ -996,3 +996,213 @@ System.Exception: 23505: duplicate key value violates unique constraint "idx_use
 - 日志分析和错误诊断技巧
 - 数据库约束和ORM框架的交互
 - 解决方案的设计和验证
+
+
+## Day 8 问题汇总（2025年7月4日）
+
+### 1. JWT Token缺少角色Claims导致权限控制失效
+
+**问题描述**：实现基于角色的权限控制后，发现 `[RequireRole("Admin")]` 特性返回403 Forbidden，但用户确实拥有Admin角色
+
+**错误现象**：
+- admin用户拥有Admin角色（数据库确认）
+- 访问 `/api/admin/dashboard` 返回403 Forbidden
+- 权限概览显示 `isAdmin: true`，但管理员接口无法访问
+
+**根本原因分析**：
+- JWT Token生成时没有包含用户角色信息
+- Token解码后只包含：`nameidentifier`、`name`、`emailaddress`
+- 缺少角色Claims：`ClaimTypes.Role`
+- ASP.NET Core的 `[RequireRole]` 特性依赖于Token中的角色Claims
+
+**解决方案**：
+修改 `JwtService.cs` 在生成Token时包含角色信息：
+
+```csharp
+// 修改接口为异步
+Task<string> GenerateTokenAsync(User user);
+
+// 获取用户角色并添加到Claims
+var userRoles = await _userRoleRepository.GetUserRolesAsync(user.Id);
+var roleNames = userRoles?.Roles?.Select(r => r.Name).ToList() ?? new List<string>();
+
+var claims = new List<Claim>
+{
+    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+    new Claim(ClaimTypes.Name, user.Username),
+    new Claim(ClaimTypes.Email, user.Email)
+};
+
+// 添加角色Claims
+foreach (var roleName in roleNames)
+{
+    claims.Add(new Claim(ClaimTypes.Role, roleName));
+}
+```
+
+**学习要点**：
+- JWT Token必须包含完整的用户权限信息
+- ASP.NET Core权限框架基于Claims机制
+- 异步获取关联数据是必要的性能优化
+- Token生成时机很关键，需要获取最新的角色信息
+
+### 2. Service层获取HttpContext的最佳实践
+
+**问题描述**：`PermissionService` 需要获取当前登录用户信息，但Service层没有直接访问HTTP上下文的能力
+
+**技术挑战**：
+- Controller层可以直接使用 `User.FindFirst()` 获取Claims
+- Service层需要通过依赖注入获取HTTP上下文
+- 需要处理可能的空值和异常情况
+
+**解决方案**：
+使用 `IHttpContextAccessor` 在Service层安全获取用户信息：
+
+```csharp
+private int? GetCurrentUserId()
+{
+    var userIdClaim = _httpContextAccessor.HttpContext?.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+    {
+        return null;
+    }
+    return userId;
+}
+
+// 注册服务
+builder.Services.AddHttpContextAccessor();
+```
+
+**学习要点**：
+- `IHttpContextAccessor` 是Service层访问HTTP上下文的标准方式
+- 必须手动注册 `AddHttpContextAccessor()` 服务
+- 安全的空值检查和类型转换是必要的
+- Service层的HTTP上下文访问应该谨慎使用
+
+**问题描述**：给用户分配角色后，用现有Token测试权限仍然显示没有该角色
+
+**问题原因**：
+- JWT Token是无状态的，一旦生成就不会自动更新
+- 角色分配发生在数据库中，但用户的Token仍然是旧的
+- Token中的角色Claims反映的是登录时的角色状态
+
+**解决方案**：
+用户角色发生变化后，需要重新登录获取包含最新角色信息的Token：
+
+```csharp
+// 1. 分配角色
+POST /api/user-roles/assign
+
+// 2. 重新登录获取新Token
+POST /api/auth/login
+
+// 3. 使用新Token测试权限
+GET /api/permissions/has-role/Guest
+```
+
+**学习要点**：
+- JWT的无状态特性决定了Token不会自动更新
+- 权限变更后需要重新获取Token才能生效
+- 生产环境中可以考虑Token刷新机制或推送通知
+- 理解JWT的优势和局限性对系统设计很重要
+
+### 4. 自定义授权特性的实现和测试
+
+**问题描述**：创建 `[RequireRole]` 特性后，如何确保它能正确工作
+
+**实现要点**：
+- 继承 `AuthorizeAttribute` 基类
+- 支持单角色和多角色参数
+- 与ASP.NET Core授权框架集成
+
+**实现代码**：
+```csharp
+public class RequireRoleAttribute : AuthorizeAttribute
+{
+    public RequireRoleAttribute(params string[] roles)
+    {
+        Roles = string.Join(",", roles);
+    }
+}
+
+// 使用方式
+[RequireRole("Admin")]
+[RequireRole("Admin", "Manager")]
+```
+
+**测试验证**：
+- 有权限用户：返回正常数据
+- 无权限用户：返回403 Forbidden
+- 未登录用户：返回401 Unauthorized
+
+**学习要点**：
+- 自定义授权特性要正确继承和实现
+- 多角色支持通过逗号分隔字符串实现
+- 测试要覆盖各种权限场景
+- 理解401和403状态码的区别和使用场景
+
+### 5. 权限控制API的设计和实现
+
+**问题描述**：设计一套完整的权限查询API，支持各种权限检查场景
+
+**设计挑战**：
+- 当前用户 vs 指定用户的权限查询
+- 权限概览 vs 单一权限检查
+- 管理员权限 vs 普通用户权限的API访问控制
+
+**API设计方案**：
+```csharp
+POST   /api/permissions/check           // 权限检查（支持指定用户）
+GET    /api/permissions/overview        // 当前用户权限概览
+GET    /api/permissions/overview/{id}   // 指定用户权限概览（管理员）
+GET    /api/permissions/has-role/{role} // 检查当前用户角色
+GET    /api/permissions/is-admin        // 检查是否为管理员
+```
+
+**权限控制策略**：
+- 当前用户权限：任何登录用户都可以查询
+- 其他用户权限：只有管理员可以查询
+- 使用 `Forbid()` 返回403状态码
+
+**学习要点**：
+- API设计要考虑安全性和易用性的平衡
+- 权限查询本身也需要权限控制
+- RESTful API的设计原则在权限接口中的应用
+- 灵活的权限查询能力对管理界面很重要
+
+### 6. 企业级权限测试的完整流程
+
+**问题描述**：如何系统性地测试基于角色的权限控制功能
+
+**测试场景设计**：
+1. **正向测试**：有权限用户的正常访问
+2. **负向测试**：无权限用户的拒绝访问
+3. **边界测试**：角色组合、权限边界等
+4. **状态测试**：角色分配前后的权限变化
+
+**测试数据准备**：
+- **Admin用户**：拥有管理员角色，能访问所有接口
+- **Guest用户**：拥有访客角色，只能访问基础接口
+- **匿名用户**：未登录，只能访问公开接口
+
+**测试执行流程**：
+```
+1. 创建测试用户和角色
+2. 分配角色关系
+3. 登录获取Token
+4. 测试各种权限场景
+5. 验证返回状态码和数据
+6. 记录测试结果
+```
+
+**验证要点**：
+- HTTP状态码的正确性（200/401/403）
+- 返回数据的准确性
+- 权限查询结果的一致性
+- 日志记录的完整性
+
+**学习要点**：
+- 权限测试需要完整的测试用例设计
+- 测试数据的准备和清理很重要
+- 自动化测试vs手动测试的权衡
+- 权限系统的测试要考虑安全性和用户体验

@@ -3,6 +3,7 @@ using BlazorLearning.Api.Middleware;
 using BlazorLearning.Api.Models;
 using BlazorLearning.Api.Services;
 using BlazorLearning.Shared.Extensions;
+using BlazorLearning.Shared.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -50,6 +51,10 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.Zero,
     };
 });
+
+// 添加权限服务
+builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddAuthentication();
 

@@ -85,7 +85,7 @@ public class AuthController : BaseApiController
                 return ApiUnauthorized("用户名或密码错误");
             }
 
-            var token = _jwt.GenerateToken(user);
+            var token = await _jwt.GenerateTokenAsync(user);
             var expiry = _jwt.GetTokenExpiry();
 
             _logger.Information($"用户登录成功,用户名称:{request.Username}");
