@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlazorLearning.Api", "Blazo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlazorLearning.Shared", "BlazorLearning.Shared\BlazorLearning.Shared.csproj", "{AB005597-2913-40F2-A497-0E5B5782DFBC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlazorLearning.Web", "BlazorLearning.Web\BlazorLearning.Web.csproj", "{7C2E5C38-BF4E-4F68-8F16-55631393492D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{AB005597-2913-40F2-A497-0E5B5782DFBC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AB005597-2913-40F2-A497-0E5B5782DFBC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AB005597-2913-40F2-A497-0E5B5782DFBC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C2E5C38-BF4E-4F68-8F16-55631393492D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C2E5C38-BF4E-4F68-8F16-55631393492D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C2E5C38-BF4E-4F68-8F16-55631393492D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C2E5C38-BF4E-4F68-8F16-55631393492D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

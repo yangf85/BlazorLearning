@@ -1,146 +1,144 @@
-﻿using BlazorLearning.Api.Models;
-using BlazorLearning.Shared.Dtos;
+﻿using BlazorLearning.Shared.Dtos;
 using BlazorLearning.Shared.Models;
 using BlazorLearning.Shared.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace BlazorLearning.Api.Controllers
+namespace BlazorLearning.Api.Controllers;
+
+[Route("api/permissions")]
+[Authorize]
+public class PermissionController : BaseApiController
 {
-    [Route("api/permissions")]
-    [Authorize]
-    public class PermissionController : BaseApiController
+    private readonly IPermissionService _permissionService;
+
+    public PermissionController(IPermissionService permissionService)
     {
-        private readonly IPermissionService _permissionService;
+        _permissionService = permissionService;
+    }
 
-        public PermissionController(IPermissionService permissionService)
+    // 检查指定用户是否拥有某个角色
+    [HttpPost("check")]
+    public async Task<ActionResult<ApiResult<PermissionCheckResponse>>> CheckPermission(
+        [FromBody] PermissionCheckRequest request)
+    {
+        try
         {
-            _permissionService = permissionService;
+            var userId = request.UserId ?? GetCurrentUserId();
+            if (userId == null)
+            {
+                return BadRequest(ApiResult<PermissionCheckResponse>.FailResult("无效的用户信息"));
+            }
+
+            var hasRole = await _permissionService.HasRoleAsync(userId.Value, request.RoleName);
+            var currentUserId = GetCurrentUserId();
+            var currentUsername = GetCurrentUsername();
+
+            var response = new PermissionCheckResponse
+            {
+                UserId = userId.Value,
+                Username = currentUsername ?? "Unknown",
+                RoleName = request.RoleName,
+                HasRole = hasRole,
+                CheckedAt = DateTime.UtcNow
+            };
+
+            return Ok(ApiResult<PermissionCheckResponse>.SuccessResult(response));
         }
-
-        // 检查指定用户是否拥有某个角色
-        [HttpPost("check")]
-        public async Task<ActionResult<ApiResponse<PermissionCheckResponse>>> CheckPermission(
-            [FromBody] PermissionCheckRequest request)
+        catch (Exception ex)
         {
-            try
-            {
-                var userId = request.UserId ?? GetCurrentUserId();
-                if (userId == null)
-                {
-                    return BadRequest(ApiResponse<PermissionCheckResponse>.FailResult("无效的用户信息"));
-                }
-
-                var hasRole = await _permissionService.HasRoleAsync(userId.Value, request.RoleName);
-                var currentUserId = GetCurrentUserId();
-                var currentUsername = GetCurrentUsername();
-
-                var response = new PermissionCheckResponse
-                {
-                    UserId = userId.Value,
-                    Username = currentUsername ?? "Unknown",
-                    RoleName = request.RoleName,
-                    HasRole = hasRole,
-                    CheckedAt = DateTime.UtcNow
-                };
-
-                return Ok(ApiResponse<PermissionCheckResponse>.SuccessResult(response));
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, ApiResponse<PermissionCheckResponse>.FailResult($"权限检查失败: {ex.Message}"));
-            }
+            return StatusCode(500, ApiResult<PermissionCheckResponse>.FailResult($"权限检查失败: {ex.Message}"));
         }
+    }
 
-        // 获取当前用户权限概览
-        [HttpGet("overview")]
-        public async Task<ActionResult<ApiResponse<UserPermissionOverview>>> GetCurrentUserPermissions()
+    // 获取当前用户权限概览
+    [HttpGet("overview")]
+    public async Task<ActionResult<ApiResult<UserPermissionOverview>>> GetCurrentUserPermissions()
+    {
+        try
         {
-            try
+            var currentUserId = GetCurrentUserId();
+            if (currentUserId == null)
             {
-                var currentUserId = GetCurrentUserId();
-                if (currentUserId == null)
-                {
-                    return Unauthorized(ApiResponse<UserPermissionOverview>.FailResult("未登录"));
-                }
-
-                var overview = await _permissionService.GetUserPermissionOverviewAsync(currentUserId.Value);
-                if (overview == null)
-                {
-                    return NotFound(ApiResponse<UserPermissionOverview>.FailResult("用户不存在"));
-                }
-
-                return Ok(ApiResponse<UserPermissionOverview>.SuccessResult(overview));
+                return Unauthorized(ApiResult<UserPermissionOverview>.FailResult("未登录"));
             }
-            catch (Exception ex)
+
+            var overview = await _permissionService.GetUserPermissionOverviewAsync(currentUserId.Value);
+            if (overview == null)
             {
-                return StatusCode(500, ApiResponse<UserPermissionOverview>.FailResult($"获取权限概览失败: {ex.Message}"));
+                return NotFound(ApiResult<UserPermissionOverview>.FailResult("用户不存在"));
             }
+
+            return Ok(ApiResult<UserPermissionOverview>.SuccessResult(overview));
         }
-
-        // 获取指定用户权限概览
-        [HttpGet("overview/{userId}")]
-        public async Task<ActionResult<ApiResponse<UserPermissionOverview>>> GetUserPermissions(int userId)
+        catch (Exception ex)
         {
-            try
-            {
-                // 只有管理员才能查看其他用户的权限
-                var isAdmin = await _permissionService.CurrentUserHasRoleAsync("Admin");
-                var currentUserId = GetCurrentUserId();
-
-                if (!isAdmin && currentUserId != userId)
-                {
-                    return Forbid();
-                }
-
-                var overview = await _permissionService.GetUserPermissionOverviewAsync(userId);
-                if (overview == null)
-                {
-                    return NotFound(ApiResponse<UserPermissionOverview>.FailResult("用户不存在"));
-                }
-
-                return Ok(ApiResponse<UserPermissionOverview>.SuccessResult(overview));
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, ApiResponse<UserPermissionOverview>.FailResult($"获取权限概览失败: {ex.Message}"));
-            }
+            return StatusCode(500, ApiResult<UserPermissionOverview>.FailResult($"获取权限概览失败: {ex.Message}"));
         }
+    }
 
-        // 检查当前用户是否拥有指定角色
-        [HttpGet("has-role/{roleName}")]
-        public async Task<ActionResult<ApiResponse<bool>>> HasRole(string roleName)
+    // 获取指定用户权限概览
+    [HttpGet("overview/{userId}")]
+    public async Task<ActionResult<ApiResult<UserPermissionOverview>>> GetUserPermissions(int userId)
+    {
+        try
         {
-            try
+            // 只有管理员才能查看其他用户的权限
+            var isAdmin = await _permissionService.CurrentUserHasRoleAsync("Admin");
+            var currentUserId = GetCurrentUserId();
+
+            if (!isAdmin && currentUserId != userId)
             {
-                var hasRole = await _permissionService.CurrentUserHasRoleAsync(roleName);
-                return Ok(ApiResponse<bool>.SuccessResult(hasRole));
+                return Forbid();
             }
-            catch (Exception ex)
+
+            var overview = await _permissionService.GetUserPermissionOverviewAsync(userId);
+            if (overview == null)
             {
-                return StatusCode(500, ApiResponse<bool>.FailResult($"角色检查失败: {ex.Message}"));
+                return NotFound(ApiResult<UserPermissionOverview>.FailResult("用户不存在"));
             }
+
+            return Ok(ApiResult<UserPermissionOverview>.SuccessResult(overview));
         }
-
-        // 检查当前用户是否为管理员
-        [HttpGet("is-admin")]
-        public async Task<ActionResult<ApiResponse<bool>>> IsAdmin()
+        catch (Exception ex)
         {
-            try
-            {
-                var currentUserId = GetCurrentUserId();
-                if (currentUserId == null)
-                {
-                    return Unauthorized(ApiResponse<bool>.FailResult("未登录"));
-                }
+            return StatusCode(500, ApiResult<UserPermissionOverview>.FailResult($"获取权限概览失败: {ex.Message}"));
+        }
+    }
 
-                var isAdmin = await _permissionService.IsAdminAsync(currentUserId.Value);
-                return Ok(ApiResponse<bool>.SuccessResult(isAdmin));
-            }
-            catch (Exception ex)
+    // 检查当前用户是否拥有指定角色
+    [HttpGet("has-role/{roleName}")]
+    public async Task<ActionResult<ApiResult<bool>>> HasRole(string roleName)
+    {
+        try
+        {
+            var hasRole = await _permissionService.CurrentUserHasRoleAsync(roleName);
+            return Ok(ApiResult<bool>.SuccessResult(hasRole));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResult<bool>.FailResult($"角色检查失败: {ex.Message}"));
+        }
+    }
+
+    // 检查当前用户是否为管理员
+    [HttpGet("is-admin")]
+    public async Task<ActionResult<ApiResult<bool>>> IsAdmin()
+    {
+        try
+        {
+            var currentUserId = GetCurrentUserId();
+            if (currentUserId == null)
             {
-                return StatusCode(500, ApiResponse<bool>.FailResult($"管理员检查失败: {ex.Message}"));
+                return Unauthorized(ApiResult<bool>.FailResult("未登录"));
             }
+
+            var isAdmin = await _permissionService.IsAdminAsync(currentUserId.Value);
+            return Ok(ApiResult<bool>.SuccessResult(isAdmin));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResult<bool>.FailResult($"管理员检查失败: {ex.Message}"));
         }
     }
 }

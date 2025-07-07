@@ -1,0 +1,338 @@
+﻿@page "/users/create"
+@using BlazorLearning.Shared.Models
+@using BlazorLearning.Shared.ApiServices
+@using System.ComponentModel.DataAnnotations
+@inject IUserApi UserApi
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>创建用户</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
+    <!-- 面包屑导航 -->
+    <MudBreadcrumbs Items="_breadcrumbItems" Class="mb-4" />
+
+    <MudPaper Class="pa-6">
+        <MudStack Spacing="4">
+            <!-- 页面标题 -->
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h4">创建新用户</MudText>
+            </MudStack>
+
+            <!-- 表单区域 -->
+            <EditForm Model="@createUserModel" OnValidSubmit="CreateUser">
+                <DataAnnotationsValidator />
+
+                <MudStack Spacing="4">
+                    <!-- 基本信息区域 -->
+                    <MudCard>
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">
+                                    <MudIcon Icon="@Icons.Material.Filled.Person" Class="mr-2" />
+                                    基本信息
+                                </MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudGrid>
+                                <MudItem xs="12" md="6">
+                                    <MudTextField @bind-Value="createUserModel.Username"
+                                                  Label="用户名"
+                                                  Placeholder="请输入用户名"
+                                                  Required="true"
+                                                  RequiredError="用户名不能为空"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Person"
+                                                  MaxLength="50"
+                                                  Counter="50"
+                                                  HelperText="用户名将用于登录，建议使用英文字母和数字"
+                                                  Validation="@(new Func<string, IEnumerable<string>>(ValidateUsername))" />
+                                </MudItem>
+
+                                <MudItem xs="12" md="6">
+                                    <MudTextField @bind-Value="createUserModel.Email"
+                                                  Label="邮箱地址"
+                                                  Placeholder="请输入邮箱地址"
+                                                  Required="true"
+                                                  RequiredError="邮箱不能为空"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Email"
+                                                  InputType="InputType.Email"
+                                                  HelperText="邮箱将用于账户验证和通知"
+                                                  Validation="@(new Func<string, IEnumerable<string>>(ValidateEmail))" />
+                                </MudItem>
+
+                                <MudItem xs="12" md="6">
+                                    <MudTextField @bind-Value="createUserModel.Password"
+                                                  Label="密码"
+                                                  Placeholder="请输入密码"
+                                                  Required="true"
+                                                  RequiredError="密码不能为空"
+                                                  InputType="@passwordInputType"
+                                                  Adornment="Adornment.End"
+                                                  AdornmentIcon="@passwordAdornmentIcon"
+                                                  OnAdornmentClick="TogglePasswordVisibility"
+                                                  AdornmentAriaLabel="显示/隐藏密码"
+                                                  MaxLength="100"
+                                                  HelperText="密码长度至少6个字符"
+                                                  Validation="@(new Func<string, IEnumerable<string>>(ValidatePassword))" />
+                                </MudItem>
+
+                                <MudItem xs="12" md="6">
+                                    <MudTextField @bind-Value="confirmPassword"
+                                                  Label="确认密码"
+                                                  Placeholder="请再次输入密码"
+                                                  Required="true"
+                                                  RequiredError="请确认密码"
+                                                  InputType="@confirmPasswordInputType"
+                                                  Adornment="Adornment.End"
+                                                  AdornmentIcon="@confirmPasswordAdornmentIcon"
+                                                  OnAdornmentClick="ToggleConfirmPasswordVisibility"
+                                                  AdornmentAriaLabel="显示/隐藏确认密码"
+                                                  HelperText="请重复输入上面的密码"
+                                                  Validation="@(new Func<string, IEnumerable<string>>(ValidateConfirmPassword))" />
+                                </MudItem>
+                            </MudGrid>
+                        </MudCardContent>
+                    </MudCard>
+
+                    <!-- 账户设置区域 -->
+                    <MudCard>
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">
+                                    <MudIcon Icon="@Icons.Material.Filled.Settings" Class="mr-2" />
+                                    账户设置
+                                </MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudGrid>
+                                <MudItem xs="12">
+                                    <MudSwitch @bind-Value="createUserModel.IsActive"
+                                               Label="启用账户"
+                                               Color="Color.Success"
+                                               UnCheckedColor="Color.Default" />
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-8">
+                                        @(createUserModel.IsActive ? "用户可以正常登录和使用系统" : "用户将被禁用，无法登录")
+                                    </MudText>
+                                </MudItem>
+                            </MudGrid>
+                        </MudCardContent>
+                    </MudCard>
+
+                    <!-- 操作按钮 -->
+                    <MudStack Row="true" Spacing="3" Class="mt-4">
+                        <MudButton ButtonType="ButtonType.Submit"
+                                   Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Save"
+                                   Disabled="@isSubmitting"
+                                   FullWidth="false">
+                            @if (isSubmitting)
+                            {
+                                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                                <MudText Class="ms-2">创建中...</MudText>
+                            }
+                            else
+                            {
+                                <MudText>创建用户</MudText>
+                            }
+                        </MudButton>
+
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Default"
+                                   StartIcon="@Icons.Material.Filled.Cancel"
+                                   OnClick="Cancel"
+                                   Disabled="@isSubmitting">
+                            取消
+                        </MudButton>
+
+                        <MudSpacer />
+
+                        <MudButton Variant="Variant.Text"
+                                   Color="Color.Secondary"
+                                   StartIcon="@Icons.Material.Filled.Refresh"
+                                   OnClick="ResetForm"
+                                   Disabled="@isSubmitting">
+                            重置表单
+                        </MudButton>
+                    </MudStack>
+                </MudStack>
+            </EditForm>
+        </MudStack>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private CreateUserModel createUserModel = new();
+    private string confirmPassword = "";
+    private bool isSubmitting = false;
+
+    // 密码可见性控制
+    private bool showPassword = false;
+    private bool showConfirmPassword = false;
+    private InputType passwordInputType => showPassword ? InputType.Text : InputType.Password;
+    private InputType confirmPasswordInputType => showConfirmPassword ? InputType.Text : InputType.Password;
+    private string passwordAdornmentIcon => showPassword ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff;
+    private string confirmPasswordAdornmentIcon => showConfirmPassword ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff;
+
+    // 面包屑导航
+    private List<BreadcrumbItem> _breadcrumbItems = new()
+    {
+        new BreadcrumbItem("首页", href: "/", icon: Icons.Material.Filled.Home),
+        new BreadcrumbItem("用户管理", href: "/users", icon: Icons.Material.Filled.People),
+        new BreadcrumbItem("创建用户", href: null, disabled: true, icon: Icons.Material.Filled.PersonAdd)
+    };
+
+    protected override void OnInitialized()
+    {
+        // 初始化默认值
+        createUserModel.IsActive = true;
+    }
+
+    private async Task CreateUser()
+    {
+        try
+        {
+            isSubmitting = true;
+            StateHasChanged();
+
+            // 这里暂时使用简单的UserDto，实际应该有CreateUserDto
+            var userDto = new UserDto
+            {
+                Username = createUserModel.Username,
+                Email = createUserModel.Email,
+                IsActive = createUserModel.IsActive,
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            };
+
+            var response = await UserApi.CreateUserAsync(userDto);
+
+            if (response.Success)
+            {
+                Snackbar.Add($"用户 {createUserModel.Username} 创建成功！", Severity.Success);
+                Navigation.NavigateTo("/users");
+            }
+            else
+            {
+                Snackbar.Add($"创建失败：{response.Message}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"创建用户时发生错误：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/users");
+    }
+
+    private void ResetForm()
+    {
+        createUserModel = new CreateUserModel { IsActive = true };
+        confirmPassword = "";
+        showPassword = false;
+        showConfirmPassword = false;
+        StateHasChanged();
+    }
+
+    private void TogglePasswordVisibility()
+    {
+        showPassword = !showPassword;
+    }
+
+    private void ToggleConfirmPasswordVisibility()
+    {
+        showConfirmPassword = !showConfirmPassword;
+    }
+
+    // 验证方法
+    private IEnumerable<string> ValidateUsername(string username)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            yield return "用户名不能为空";
+        }
+        else if (username.Length < 3)
+        {
+            yield return "用户名长度至少3个字符";
+        }
+        else if (username.Length > 50)
+        {
+            yield return "用户名长度不能超过50个字符";
+        }
+        else if (!System.Text.RegularExpressions.Regex.IsMatch(username, @"^[a-zA-Z0-9_]+$"))
+        {
+            yield return "用户名只能包含字母、数字和下划线";
+        }
+    }
+
+    private IEnumerable<string> ValidateEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            yield return "邮箱不能为空";
+        }
+        else if (!System.Text.RegularExpressions.Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+        {
+            yield return "请输入有效的邮箱地址";
+        }
+    }
+
+    private IEnumerable<string> ValidatePassword(string password)
+    {
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            yield return "密码不能为空";
+        }
+        else if (password.Length < 6)
+        {
+            yield return "密码长度至少6个字符";
+        }
+        else if (password.Length > 100)
+        {
+            yield return "密码长度不能超过100个字符";
+        }
+    }
+
+    private IEnumerable<string> ValidateConfirmPassword(string confirmPwd)
+    {
+        if (string.IsNullOrWhiteSpace(confirmPwd))
+        {
+            yield return "请确认密码";
+        }
+        else if (confirmPwd != createUserModel.Password)
+        {
+            yield return "两次输入的密码不一致";
+        }
+    }
+
+    // 创建用户模型
+    public class CreateUserModel
+    {
+        [Required(ErrorMessage = "用户名不能为空")]
+        [StringLength(50, MinimumLength = 3, ErrorMessage = "用户名长度必须在3-50个字符之间")]
+        public string Username { get; set; } = "";
+
+        [Required(ErrorMessage = "邮箱不能为空")]
+        [EmailAddress(ErrorMessage = "请输入有效的邮箱地址")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "密码不能为空")]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "密码长度必须在6-100个字符之间")]
+        public string Password { get; set; } = "";
+
+        public bool IsActive { get; set; } = true;
+    }
+}

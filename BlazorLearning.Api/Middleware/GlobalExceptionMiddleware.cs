@@ -1,4 +1,4 @@
-﻿using BlazorLearning.Api.Models;
+﻿using BlazorLearning.Shared.Models;
 using BlazorLearning.Shared.Services;
 using System.Net;
 using System.Text.Json;
@@ -37,29 +37,29 @@ namespace BlazorLearning.Api.Middleware
         {
             context.Response.ContentType = "application/json";
 
-            var response = ApiResponse<object>.FailResult("服务器内部错误");
+            var response = ApiResult<object>.FailResult("服务器内部错误");
 
             // 根据异常类型设置不同的状态码和消息
             switch (exception)
             {
                 case ArgumentNullException:
                     context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                    response = ApiResponse<object>.FailResult("请求参数不能为空");
+                    response = ApiResult<object>.FailResult("请求参数不能为空");
                     break;
 
                 case ArgumentException:
                     context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                    response = ApiResponse<object>.FailResult("请求参数无效");
+                    response = ApiResult<object>.FailResult("请求参数无效");
                     break;
 
                 case InvalidOperationException:
                     context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                    response = ApiResponse<object>.FailResult("操作无效");
+                    response = ApiResult<object>.FailResult("操作无效");
                     break;
 
                 default:
                     context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                    response = ApiResponse<object>.FailResult("服务器内部错误");
+                    response = ApiResult<object>.FailResult("服务器内部错误");
                     break;
             }
 

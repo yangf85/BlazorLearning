@@ -1,54 +1,72 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
+﻿using BlazorLearning.Api.Models;
+using BlazorLearning.Api.Repositories;
+using BlazorLearning.Shared.Models;
+using BlazorLearning.Shared.Services;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace BlazorLearning.Api.Controllers;
 
-[Route("api/[controller]")]
-
-public class TestController : BaseApiController
+[ApiController]
+[Route("api/test")]
+public class TestController : ControllerBase
 {
-    [HttpGet("public")]
-    public IActionResult PublicEndpoint()
+    private readonly IUserRepository _userRepository;
+    private readonly ILoggerService _logger;
+
+    public TestController(IUserRepository userRepository, ILoggerService logger)
     {
-        return ApiOk("这是公开接口，无需认证");
+        _userRepository = userRepository;
+        _logger = logger;
     }
 
-    [HttpGet("protected")]
-    [Authorize]
-    public IActionResult ProtectedEndpoint()
+    /// <summary>
+    /// 公开的用户列表接口（无需认证）
+    /// </summary>
+    [HttpGet("users-public")]
+    [ProducesResponseType(typeof(ApiResult<List<UserDto>>), 200)]
+    public async Task<ActionResult<ApiResult<List<UserDto>>>> GetUsersPublic()
     {
-        var uerId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var userName = User.FindFirst(ClaimTypes.Name)?.Value;
-        var email = User.FindFirst(ClaimTypes.Email)?.Value;
+        _logger.Information("开始获取用户列表（公开接口）");
 
-        var userInfo = new
+        try
         {
-            Message = "这是受保护的接口，需要JWT认证",
-            UserId = uerId,
-            UserName = userName,
-            Email = email,
-            Claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList()
-        };
+            var users = await _userRepository.GetAllUsersAsync();
 
-        return ApiOk(userInfo);
+            var userDtos = users.Select(user => new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                IsActive = user.IsActive,
+                CreatedAt = user.CreatedAt,
+                UpdatedAt = user.UpdatedAt
+            }).ToList();
+
+            _logger.Information("成功获取到 {Count} 个用户（公开接口）", userDtos.Count);
+
+            return Ok(ApiResult<List<UserDto>>.SuccessResult(userDtos, "获取用户列表成功"));
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "获取用户列表时发生错误（公开接口）");
+            return StatusCode(500, ApiResult<List<UserDto>>.FailResult("获取用户列表失败"));
+        }
     }
 
-    [HttpGet("user-info")]
-    [Authorize]
-    public IActionResult GetCurrentUserInfo()
+    /// <summary>
+    /// 检查原始用户接口的认证状态
+    /// </summary>
+    [HttpGet("check-auth")]
+    public ActionResult CheckAuth()
     {
-        var userId = User.FindFirst("userId")?.Value;
-        var userName = User.FindFirst("username")?.Value;
+        var authHeader = Request.Headers["Authorization"].FirstOrDefault();
+        var hasAuth = !string.IsNullOrEmpty(authHeader);
 
-        return ApiOk(new
+        return Ok(new
         {
-            Message = "当前登录用户信息",
-            UserId = userId,
-            UserName = userName,
-            IsAuthenticated = User.Identity?.IsAuthenticated,
-            AuthenticationType = User.Identity?.AuthenticationType,
+            HasAuthHeader = hasAuth,
+            AuthHeader = authHeader?.Substring(0, Math.Min(20, authHeader.Length)) + "...",
+            Message = hasAuth ? "有认证头" : "无认证头"
         });
     }
 }

@@ -11,7 +11,7 @@ using System.Security.Claims;
 
 namespace BlazorLearning.Api.Controllers;
 
-[Route("api/[controller]")]
+[Route("api/auth")]
 public class AuthController : BaseApiController
 {
     IUserRepository _userRepository;

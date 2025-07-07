@@ -1,0 +1,537 @@
+﻿@page "/users/{UserId:int}/edit"
+@using BlazorLearning.Shared.Models
+@using BlazorLearning.Shared.ApiServices
+@inject IUserApi UserApi
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>用户管理</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudPaper Class="pa-4">
+        <!-- 页面标题和操作按钮 -->
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+            <MudText Typo="Typo.h4">用户管理</MudText>
+            <MudSpacer />
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.PersonAdd"
+                       OnClick="NavigateToCreate">
+                添加用户
+            </MudButton>
+        </MudStack>
+
+        <!-- 搜索和筛选区域 -->
+        <MudPaper Class="pa-3 mb-4" Outlined="true">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                <MudTextField @bind-Value="searchText"
+                              Placeholder="搜索用户名或邮箱..."
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Adornment="Adornment.Start"
+                              IconSize="Size.Medium"
+                              Clearable="true"
+                              OnKeyUp="OnSearchKeyUp"
+                              DebounceInterval="300"
+                              Style="min-width: 300px;" />
+
+                <MudSelect T="bool?" @bind-Value="statusFilter"
+                           Placeholder="状态筛选"
+                           Clearable="true"
+                           AdornmentIcon="@Icons.Material.Filled.FilterList"
+                           Adornment="Adornment.Start">
+                    <MudSelectItem T="bool?" Value="@((bool?)null)">全部状态</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@((bool?)true)">正常</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="@((bool?)false)">禁用</MudSelectItem>
+                </MudSelect>
+
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.Clear"
+                           OnClick="ClearFilters">
+                    清空筛选
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Info"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="RefreshData"
+                           Disabled="@isLoading">
+                    刷新
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+
+        @if (isLoading)
+        {
+            <MudStack AlignItems="AlignItems.Center" Class="pa-8">
+                <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+                <MudText Class="mt-2">加载用户列表...</MudText>
+            </MudStack>
+        }
+        else if (hasError)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">
+                <MudText><strong>加载失败</strong></MudText>
+                <MudText>@errorMessage</MudText>
+                <MudButton Class="mt-2"
+                           Color="Color.Error"
+                           Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="RefreshData">
+                    重试
+                </MudButton>
+            </MudAlert>
+        }
+        else if (!filteredUsers.Any())
+        {
+            <MudPaper Class="pa-8" Outlined="true">
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Color="Color.Default" />
+                    <MudText Typo="Typo.h6">没有找到用户</MudText>
+                    <MudText Color="Color.Secondary">
+                        @if (IsFiltering)
+                        {
+                            <span>当前筛选条件下没有用户数据，请尝试调整搜索条件。</span>
+                        }
+                        else
+                        {
+                            <span>系统中暂无用户数据。</span>
+                        }
+                    </MudText>
+                    @if (IsFiltering)
+                    {
+                        <MudButton Color="Color.Primary"
+                                   Variant="Variant.Text"
+                                   OnClick="ClearFilters">
+                            清空筛选条件
+                        </MudButton>
+                    }
+                </MudStack>
+            </MudPaper>
+        }
+        else
+        {
+            <!-- 数据统计 -->
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+                <MudText Color="Color.Secondary">
+                    @if (IsFiltering)
+                    {
+                        <span>找到 @filteredUsers.Count 个用户（共 @allUsers.Count 个）</span>
+                    }
+                    else
+                    {
+                        <span>共 @allUsers.Count 个用户</span>
+                    }
+                </MudText>
+                <MudSpacer />
+                <MudText Color="Color.Secondary">
+                    显示第 @(currentPage* pageSize + 1) - @Math.Min((currentPage + 1) * pageSize, filteredUsers.Count) 项
+                </MudText>
+            </MudStack>
+
+            <!-- 用户数据表格 -->
+            <MudTable Items="@pagedUsers"
+                      Hover="true"
+                      Striped="true"
+                      Dense="true"
+                      FixedHeader="true"
+                      Height="400px">
+                <HeaderContent>
+                    <MudTh>
+                        <MudTableSortLabel SortBy="new Func<UserDto, object>(x => x.Id)">
+                            ID
+                        </MudTableSortLabel>
+                    </MudTh>
+                    <MudTh>
+                        <MudTableSortLabel SortBy="new Func<UserDto, object>(x => x.Username)">
+                            用户名
+                        </MudTableSortLabel>
+                    </MudTh>
+                    <MudTh>
+                        <MudTableSortLabel SortBy="new Func<UserDto, object>(x => x.Email)">
+                            邮箱
+                        </MudTableSortLabel>
+                    </MudTh>
+                    <MudTh>状态</MudTh>
+                    <MudTh>
+                        <MudTableSortLabel SortBy="new Func<UserDto, object>(x => x.CreatedAt)">
+                            创建时间
+                        </MudTableSortLabel>
+                    </MudTh>
+                    <MudTh Style="text-align: center;">操作</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="ID">@context.Id</MudTd>
+                    <MudTd DataLabel="用户名">
+                        <MudText>@context.Username</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="邮箱">
+                        <MudText>@context.Email</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="状态">
+                        @if (context.IsActive)
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">
+                                正常
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Cancel">
+                                禁用
+                            </MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="创建时间">
+                        <MudText>@context.CreatedAt.ToString("yyyy-MM-dd")</MudText>
+                        <MudText Color="Color.Secondary" Typo="Typo.caption">
+                            @context.CreatedAt.ToString("HH:mm:ss")
+                        </MudText>
+                    </MudTd>
+                    <MudTd DataLabel="操作" Style="text-align: center;">
+                        <MudButtonGroup Size="Size.Small" Variant="Variant.Text">
+                            <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                           Color="Color.Info"
+                                           Title="查看详情"
+                                           Size="Size.Small"
+                                           OnClick="@(() => ViewUser(context.Id))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           Color="Color.Primary"
+                                           Title="编辑用户"
+                                           Size="Size.Small"
+                                           OnClick="@(() => EditUser(context.Id))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Color="Color.Error"
+                                           Title="删除用户"
+                                           Size="Size.Small"
+                                           OnClick="@(() => DeleteUser(context))" />
+                        </MudButtonGroup>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <!-- 分页控件 -->
+            @if (totalPages > 1)
+            {
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-4">
+                    <MudPagination Count="@totalPages"
+                                   @bind-Selected="@selectedPage"
+                                   Color="Color.Primary"
+                                   ShowFirstButton="true"
+                                   ShowLastButton="true" />
+                    <MudSpacer />
+                    <MudSelect T="int" @bind-Value="pageSize"
+                               Dense="true"
+                               Style="width: 100px;">
+                        <MudSelectItem T="int" Value="5">5条/页</MudSelectItem>
+                        <MudSelectItem T="int" Value="10">10条/页</MudSelectItem>
+                        <MudSelectItem T="int" Value="20">20条/页</MudSelectItem>
+                        <MudSelectItem T="int" Value="50">50条/页</MudSelectItem>
+                    </MudSelect>
+                </MudStack>
+            }
+        }
+    </MudPaper>
+</MudContainer>
+
+<!-- 删除确认对话框 -->
+<MudDialog @bind-IsVisible="isDeleteDialogOpen" Options="@(new DialogOptions { CloseOnEscapeKey = true, CloseButton = true })">
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" />
+            <MudText Typo="Typo.h6">确认删除用户</MudText>
+        </MudStack>
+    </TitleContent>
+    <DialogContent>
+        @if (selectedUserForDelete != null)
+        {
+            <MudStack Spacing="3">
+                <MudAlert Severity="Severity.Warning" NoIcon="false">
+                    <MudText><strong>警告：此操作不可恢复</strong></MudText>
+                    <MudText>您即将删除以下用户，此操作将永久移除用户数据。</MudText>
+                </MudAlert>
+
+                <MudPaper Class="pa-3" Outlined="true">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                        <MudAvatar Color="Color.Error">
+                            @selectedUserForDelete.Username.Substring(0, 1).ToUpper()
+                        </MudAvatar>
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.subtitle1"><strong>@selectedUserForDelete.Username</strong></MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">@selectedUserForDelete.Email</MudText>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                @if (selectedUserForDelete.IsActive)
+                                {
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">正常</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Error" Size="Size.Small">禁用</MudChip>
+                                }
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    ID: @selectedUserForDelete.Id
+                                </MudText>
+                            </MudStack>
+                        </MudStack>
+                    </MudStack>
+                </MudPaper>
+
+                <MudStack Spacing="1">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Class="mr-1" />
+                        用户信息
+                    </MudText>
+                    <MudSimpleTable Dense="true" Hover="false" Bordered="false">
+                        <tbody>
+                            <tr>
+                                <td style="width: 100px;"><MudText Typo="Typo.caption">创建时间</MudText></td>
+                                <td><MudText Typo="Typo.body2">@selectedUserForDelete.CreatedAt.ToString("yyyy-MM-dd HH:mm")</MudText></td>
+                            </tr>
+                            @if (selectedUserForDelete.UpdatedAt.HasValue)
+                            {
+                                <tr>
+                                    <td><MudText Typo="Typo.caption">更新时间</MudText></td>
+                                    <td><MudText Typo="Typo.body2">@selectedUserForDelete.UpdatedAt.Value.ToString("yyyy-MM-dd HH:mm")</MudText></td>
+                                </tr>
+                            }
+                            <tr>
+                                <td><MudText Typo="Typo.caption">注册天数</MudText></td>
+                                <td><MudText Typo="Typo.body2">@((DateTime.Now - selectedUserForDelete.CreatedAt).Days) 天</MudText></td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+                </MudStack>
+
+                <MudDivider />
+
+                <MudText Typo="Typo.body2" Color="Color.Error">
+                    <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Class="mr-1" />
+                    删除后将无法恢复此用户的数据，请确认您真的要继续此操作。
+                </MudText>
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+            <MudButton OnClick="CloseDeleteDialog"
+                       Variant="Variant.Text"
+                       Color="Color.Default"
+                       Disabled="@isDeletingUser">
+                取消
+            </MudButton>
+            <MudButton OnClick="ConfirmDelete"
+                       Variant="Variant.Filled"
+                       Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.Delete"
+                       Disabled="@isDeletingUser">
+                @if (isDeletingUser)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    <MudText Class="ms-2">删除中...</MudText>
+                }
+                else
+                {
+                    <MudText>确认删除</MudText>
+                }
+            </MudButton>
+        </MudStack>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    // 数据相关
+    private List<UserDto> allUsers = new();
+    private List<UserDto> filteredUsers = new();
+    private List<UserDto> pagedUsers = new();
+
+    // 状态相关
+    private bool isLoading = true;
+    private bool hasError = false;
+    private string errorMessage = "";
+
+    // 搜索和筛选
+    private string searchText = "";
+    private bool? statusFilter = null;
+    private bool IsFiltering => !string.IsNullOrWhiteSpace(searchText) || statusFilter.HasValue;
+
+    // 分页相关
+    private int currentPage = 0;
+    private int selectedPage = 1;
+    private int pageSize = 10;
+    private int totalPages = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        try
+        {
+            isLoading = true;
+            hasError = false;
+            StateHasChanged();
+
+            var response = await UserApi.GetAllUsersAsync();
+
+            if (response.Success && response.Data != null)
+            {
+                allUsers = response.Data;
+                ApplyFilters();
+                Snackbar.Add($"成功加载 {allUsers.Count} 个用户", Severity.Success);
+            }
+            else
+            {
+                hasError = true;
+                errorMessage = response.Message ?? "加载用户列表失败";
+                Snackbar.Add(errorMessage, Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            hasError = true;
+            errorMessage = $"网络错误：{ex.Message}";
+            Snackbar.Add(errorMessage, Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        filteredUsers = allUsers.Where(user =>
+        {
+            // 文本搜索
+            var matchesText = string.IsNullOrWhiteSpace(searchText) ||
+                             user.Username.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                             user.Email.Contains(searchText, StringComparison.OrdinalIgnoreCase);
+
+            // 状态筛选
+            var matchesStatus = !statusFilter.HasValue || user.IsActive == statusFilter.Value;
+
+            return matchesText && matchesStatus;
+        }).ToList();
+
+        // 重置分页
+        selectedPage = 1;
+        UpdatePagination();
+    }
+
+    private void UpdatePagination()
+    {
+        currentPage = selectedPage - 1;
+        totalPages = (int)Math.Ceiling((double)filteredUsers.Count / pageSize);
+
+        pagedUsers = filteredUsers
+            .Skip(currentPage * pageSize)
+            .Take(pageSize)
+            .ToList();
+    }
+
+    private void OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        ApplyFilters();
+    }
+
+    private void ClearFilters()
+    {
+        searchText = "";
+        statusFilter = null;
+        ApplyFilters();
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadUsers();
+    }
+
+    // 分页变化事件
+    private void OnPageChanged(int page)
+    {
+        selectedPage = page;
+        UpdatePagination();
+    }
+
+    private void OnPageSizeChanged(int newPageSize)
+    {
+        pageSize = newPageSize;
+        selectedPage = 1;
+        UpdatePagination();
+    }
+
+    // 操作方法
+    private void NavigateToCreate()
+    {
+        Navigation.NavigateTo("/users/create");
+    }
+
+    private void ViewUser(int userId)
+    {
+        Navigation.NavigateTo($"/users/{userId}");
+    }
+
+    private void EditUser(int userId)
+    {
+        Navigation.NavigateTo($"/users/{userId}/edit");
+    }
+
+    private void DeleteUser(UserDto user)
+    {
+        selectedUserForDelete = user;
+        isDeleteDialogOpen = true;
+    }
+
+    // 删除功能相关
+    private UserDto? selectedUserForDelete;
+    private bool isDeleteDialogOpen = false;
+    private bool isDeletingUser = false;
+
+    private async Task ConfirmDelete()
+    {
+        if (selectedUserForDelete == null) return;
+
+        try
+        {
+            isDeletingUser = true;
+            StateHasChanged();
+
+            var response = await UserApi.DeleteUserAsync(selectedUserForDelete.Id);
+
+            if (response.Success)
+            {
+                Snackbar.Add($"用户 {selectedUserForDelete.Username} 删除成功", Severity.Success);
+
+                // 从列表中移除用户
+                allUsers.RemoveAll(u => u.Id == selectedUserForDelete.Id);
+                ApplyFilters();
+
+                CloseDeleteDialog();
+            }
+            else
+            {
+                Snackbar.Add($"删除失败：{response.Message}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"删除用户时发生错误：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isDeletingUser = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseDeleteDialog()
+    {
+        isDeleteDialogOpen = false;
+        selectedUserForDelete = null;
+        isDeletingUser = false;
+        StateHasChanged();
+    }
+}

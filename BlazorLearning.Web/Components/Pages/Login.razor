@@ -1,0 +1,94 @@
+﻿@page "/login"
+@using BlazorLearning.Shared.ApiServices
+@using BlazorLearning.Shared.Models
+@using BlazorLearning.Web.Services
+@inject IAuthApi AuthApi
+@inject ITokenService TokenService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>登录</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+    <MudPaper Elevation="25" Class="pa-8">
+        <MudForm @ref="loginForm" @onsubmit="HandleLogin">
+            <div class="d-flex justify-center mb-4">
+                <MudText Typo="Typo.h4" Color="Color.Primary">登录</MudText>
+            </div>
+
+            <MudTextField @bind-Value="loginRequest.Username"
+                          Label="用户名"
+                          Variant="Variant.Outlined"
+                          Required="true"
+                          Class="mb-4" />
+
+            <MudTextField @bind-Value="loginRequest.Password"
+                          Label="密码"
+                          Variant="Variant.Outlined"
+                          InputType="InputType.Password"
+                          Required="true"
+                          Class="mb-4" />
+
+            <div class="d-flex justify-space-between align-center">
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Primary"
+                           OnClick="@(() => Navigation.NavigateTo("/register"))">
+                    注册新账户
+                </MudButton>
+
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Class="ml-auto"
+                           Disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                        <MudText>登录中...</MudText>
+                    }
+                    else
+                    {
+                        <MudText>登录</MudText>
+                    }
+                </MudButton>
+            </div>
+        </MudForm>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private MudForm loginForm = null!;
+    private LoginRequest loginRequest = new();
+    private bool isLoading = false;
+
+    private async Task HandleLogin()
+    {
+        if (!loginForm.IsValid)
+            return;
+
+        isLoading = true;
+        try
+        {
+            var result = await AuthApi.LoginAsync(loginRequest);
+
+            if (result.Success && result.Data != null)
+            {
+                await TokenService.SetTokenAsync(result.Data.Token);
+                Snackbar.Add("登录成功！", Severity.Success);
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                Snackbar.Add(result.Message ?? "登录失败", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"登录失败：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

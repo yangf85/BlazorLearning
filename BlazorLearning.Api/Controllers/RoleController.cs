@@ -11,7 +11,7 @@ namespace BlazorLearning.Api.Controllers;
 /// <summary>
 /// 角色管理控制器
 /// </summary>
-[Route("api/[controller]")]
+[Route("api/roles")]
 [Authorize] // 所有角色管理操作都需要认证
 public class RoleController : BaseApiController
 {

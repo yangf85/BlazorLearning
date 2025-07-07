@@ -1,5 +1,6 @@
 ﻿using BlazorLearning.Api.Models;
 using BlazorLearning.Api.Repositories;
+using BlazorLearning.Shared.Models;
 using BlazorLearning.Shared.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -7,8 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace BlazorLearning.Api.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
-public class UserController : ControllerBase
+[Route("api/users")]
+public class UserController : BaseApiController
 {
     private readonly IUserRepository _userRepository;
     private readonly ILoggerService _logger;
@@ -26,18 +27,37 @@ public class UserController : ControllerBase
     /// <response code="200">成功返回用户列表</response>
     /// <response code="500">服务器内部错误</response>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<User>>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 500)]
+    [ProducesResponseType(typeof(ApiResult<List<UserDto>>), 200)]
+    [ProducesResponseType(typeof(ApiResult<object>), 500)]
     [Produces("application/json")]
-    public async Task<ActionResult<ApiResponse<IEnumerable<User>>>> GetUsers()
+    public async Task<IActionResult> GetUsers()
     {
         _logger.Information("开始获取用户列表");
 
-        var users = await _userRepository.GetAllUsersAsync();
+        try
+        {
+            var users = await _userRepository.GetAllUsersAsync();
 
-        _logger.Information("成功获取到 {Count} 个用户", users.Count());
+            // 将User实体转换为UserDto
+            var userDtos = users.Select(user => new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                IsActive = user.IsActive,
+                CreatedAt = user.CreatedAt,
+                UpdatedAt = user.UpdatedAt
+            }).ToList();
 
-        return Ok(ApiResponse<IEnumerable<User>>.SuccessResult(users, "获取用户列表成功"));
+            _logger.Information("成功获取到 {Count} 个用户", userDtos.Count);
+
+            return ApiOk(userDtos, "获取用户列表成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "获取用户列表时发生错误");
+            return ApiBadRequest("获取用户列表失败");
+        }
     }
 
     /// <summary>
@@ -45,22 +65,38 @@ public class UserController : ControllerBase
     /// </summary>
     /// <param name="id">用户ID</param>
     /// <returns>返回指定用户的详细信息</returns>
-    /// <response code="200">成功返回用户信息</response>
-    /// <response code="404">用户不存在</response>
-    /// <response code="500">服务器内部错误</response>
     [HttpGet("{id}")]
-    [ProducesResponseType(typeof(ApiResponse<User>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 404)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 500)]
+    [ProducesResponseType(typeof(ApiResult<UserDto>), 200)]
+    [ProducesResponseType(typeof(ApiResult<object>), 404)]
+    [ProducesResponseType(typeof(ApiResult<object>), 500)]
     [Produces("application/json")]
-    public async Task<ActionResult<User>> GetUser(int id)
+    public async Task<IActionResult> GetUser(int id)
     {
-        var user = await _userRepository.GetUserByIdAsync(id);
-        if (user == null)
+        try
         {
-            return NotFound(ApiResponse<User>.FailResult($"用户Id{id}不存在"));
+            var user = await _userRepository.GetUserByIdAsync(id);
+            if (user == null)
+            {
+                return ApiNotFound($"用户Id{id}不存在");
+            }
+
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                IsActive = user.IsActive,
+                CreatedAt = user.CreatedAt,
+                UpdatedAt = user.UpdatedAt
+            };
+
+            return ApiOk(userDto, "获取用户信息成功");
         }
-        return Ok(ApiResponse<User>.SuccessResult(user, "获取用户信息成功"));
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "获取用户信息时发生错误, UserId: {UserId}", id);
+            return ApiBadRequest("获取用户信息失败");
+        }
     }
 
     /// <summary>
@@ -68,37 +104,45 @@ public class UserController : ControllerBase
     /// </summary>
     /// <param name="user">用户信息</param>
     /// <returns>返回创建的用户信息</returns>
-    /// <response code="201">用户创建成功</response>
-    /// <response code="400">请求数据验证失败</response>
-    /// <response code="500">服务器内部错误</response>
     [HttpPost]
-    [ProducesResponseType(typeof(ApiResponse<User>), 201)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 500)]
+    [ProducesResponseType(typeof(ApiResult<UserDto>), 201)]
+    [ProducesResponseType(typeof(ApiResult<object>), 400)]
+    [ProducesResponseType(typeof(ApiResult<object>), 500)]
     [Consumes("application/json")]
     [Produces("application/json")]
-    public async Task<ActionResult<ApiResponse<User>>> PostUser(User user) // 修改返回类型
+    public async Task<IActionResult> PostUser(User user)
     {
         _logger.Information("开始创建用户, Username: {Username}", user?.Username ?? "未知");
 
         if (!ModelState.IsValid)
         {
             _logger.Warning("创建用户时模型验证失败, Username: {Username}", user?.Username ?? "未知");
-            return BadRequest(ApiResponse<User>.FailResult("模型验证失败"));
+            return ApiBadRequest("模型验证失败");
         }
 
         try
         {
             var createdUser = await _userRepository.CreateUserAsync(user);
+
+            var userDto = new UserDto
+            {
+                Id = createdUser.Id,
+                Username = createdUser.Username,
+                Email = createdUser.Email,
+                IsActive = createdUser.IsActive,
+                CreatedAt = createdUser.CreatedAt,
+                UpdatedAt = createdUser.UpdatedAt
+            };
+
             _logger.Information("用户创建成功, ID: {UserId}, Username: {Username}",
                 createdUser.Id, createdUser.Username);
-            return CreatedAtAction(nameof(GetUser), new { id = createdUser.Id },
-                ApiResponse<User>.SuccessResult(createdUser, "用户创建成功"));
+
+            return ApiOk(userDto, "用户创建成功");
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "创建用户失败, Username: {Username}", user?.Username ?? "未知");
-            return BadRequest(ApiResponse<User>.FailResult($"创建用户失败: {ex.Message}"));
+            return ApiBadRequest($"创建用户失败: {ex.Message}");
         }
     }
 
@@ -108,38 +152,46 @@ public class UserController : ControllerBase
     /// <param name="id">用户ID</param>
     /// <param name="user">更新的用户信息</param>
     /// <returns>返回更新后的用户信息</returns>
-    /// <response code="200">用户更新成功</response>
-    /// <response code="400">请求数据验证失败或ID不匹配</response>
-    /// <response code="404">用户不存在</response>
-    /// <response code="500">服务器内部错误</response>
     [HttpPut("{id}")]
-    [ProducesResponseType(typeof(ApiResponse<User>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 404)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 500)]
+    [ProducesResponseType(typeof(ApiResult<UserDto>), 200)]
+    [ProducesResponseType(typeof(ApiResult<object>), 400)]
+    [ProducesResponseType(typeof(ApiResult<object>), 404)]
+    [ProducesResponseType(typeof(ApiResult<object>), 500)]
     [Consumes("application/json")]
     [Produces("application/json")]
-    public async Task<ActionResult<User>> PutUser(int id, User user)
+    public async Task<IActionResult> PutUser(int id, User user)
     {
         if (id != user.Id)
         {
-            return BadRequest("用户ID不匹配");
+            return ApiBadRequest("用户ID不匹配");
         }
 
         var existingUser = await _userRepository.GetUserByIdAsync(id);
         if (existingUser == null)
         {
-            return NotFound($"用户Id{id}不存在");
+            return ApiNotFound($"用户Id{id}不存在");
         }
 
         try
         {
             var updatedUser = await _userRepository.UpdateUserAsync(user);
-            return Ok(updatedUser);
+
+            var userDto = new UserDto
+            {
+                Id = updatedUser.Id,
+                Username = updatedUser.Username,
+                Email = updatedUser.Email,
+                IsActive = updatedUser.IsActive,
+                CreatedAt = updatedUser.CreatedAt,
+                UpdatedAt = updatedUser.UpdatedAt
+            };
+
+            return ApiOk(userDto, "用户更新成功");
         }
         catch (Exception ex)
         {
-            return BadRequest($"更新用户失败: {ex.Message}");
+            _logger.Error(ex, "更新用户失败, UserId: {UserId}", id);
+            return ApiBadRequest($"更新用户失败: {ex.Message}");
         }
     }
 
@@ -148,41 +200,43 @@ public class UserController : ControllerBase
     /// </summary>
     /// <param name="id">要删除的用户ID</param>
     /// <returns>删除操作的结果</returns>
-    /// <response code="200">用户删除成功</response>
-    /// <response code="404">用户不存在</response>
-    /// <response code="500">服务器内部错误</response>
     [HttpDelete("{id}")]
-    [ProducesResponseType(typeof(ApiResponse<object>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 404)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 500)]
+    [ProducesResponseType(typeof(ApiResult<bool>), 200)]
+    [ProducesResponseType(typeof(ApiResult<object>), 404)]
+    [ProducesResponseType(typeof(ApiResult<object>), 500)]
     [Produces("application/json")]
-    public async Task<ActionResult> DeleteUser(int id)
+    public async Task<IActionResult> DeleteUser(int id)
     {
         var existingUser = await _userRepository.GetUserByIdAsync(id);
         if (existingUser == null)
         {
-            return NotFound($"用户Id{id}不存在");
+            return ApiNotFound($"用户Id{id}不存在");
         }
+
         try
         {
             var isDeleted = await _userRepository.DeleteUserAsync(id);
             if (isDeleted)
             {
-                return NoContent();
+                _logger.Information("成功删除用户, UserId: {UserId}, Username: {Username}",
+                    id, existingUser.Username);
+                return ApiOk(true, "用户删除成功");
             }
             else
             {
-                return BadRequest("删除用户失败");
+                _logger.Warning("删除用户失败, UserId: {UserId}", id);
+                return ApiBadRequest("删除用户失败");
             }
         }
         catch (Exception ex)
         {
-            return BadRequest($"删除用户失败: {ex.Message}");
+            _logger.Error(ex, "删除用户失败, UserId: {UserId}", id);
+            return ApiBadRequest($"删除用户失败: {ex.Message}");
         }
     }
 
     [HttpGet("test-exception")]
-    public ActionResult TestException()
+    public IActionResult TestException()
     {
         _logger.Debug("测试异常处理");
         throw new InvalidOperationException("这是一个测试异常");

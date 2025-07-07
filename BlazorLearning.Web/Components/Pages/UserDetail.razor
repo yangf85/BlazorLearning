@@ -1,0 +1,284 @@
+﻿@page "/users/{UserId:int}"
+@using BlazorLearning.Shared.Models
+@using BlazorLearning.Shared.ApiServices
+@inject IUserApi UserApi
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>用户详情 - @(user?.Username ?? "加载中...")</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <!-- 面包屑导航 -->
+    <MudBreadcrumbs Items="_breadcrumbItems" Class="mb-4" />
+
+    @if (isLoading)
+    {
+        <MudPaper Class="pa-8">
+            <MudStack AlignItems="AlignItems.Center" Spacing="3">
+                <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+                <MudText Typo="Typo.h6">加载用户详情...</MudText>
+            </MudStack>
+        </MudPaper>
+    }
+    else if (hasError)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">
+            <MudText><strong>加载失败</strong></MudText>
+            <MudText>@errorMessage</MudText>
+            <MudStack Row="true" Class="mt-3" Spacing="2">
+                <MudButton Color="Color.Error"
+                           Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadUserDetail">
+                    重试
+                </MudButton>
+                <MudButton Color="Color.Default"
+                           Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="NavigateBack">
+                    返回列表
+                </MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+    else if (user != null)
+    {
+        <MudStack Spacing="4">
+            <!-- 页面标题和操作按钮 -->
+            <MudPaper Class="pa-4">
+                <MudStack Row="true" AlignItems="AlignItems.Center">
+                    <MudAvatar Color="Color.Primary" Size="Size.Large">
+                        @user.Username.Substring(0, 1).ToUpper()
+                    </MudAvatar>
+                    <MudStack Spacing="1">
+                        <MudText Typo="Typo.h4">@user.Username</MudText>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            @if (user.IsActive)
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">
+                                    正常状态
+                                </MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Cancel">
+                                    已禁用
+                                </MudChip>
+                            }
+                            <MudText Color="Color.Secondary" Typo="Typo.caption">
+                                ID: @user.Id
+                            </MudText>
+                        </MudStack>
+                    </MudStack>
+                    <MudSpacer />
+                    <MudStack Row="true" Spacing="2">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Edit"
+                                   OnClick="EditUser">
+                            编辑用户
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Default"
+                                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                                   OnClick="NavigateBack">
+                            返回列表
+                        </MudButton>
+                    </MudStack>
+                </MudStack>
+            </MudPaper>
+
+            <!-- 用户基本信息 -->
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.Person" Class="mr-2" />
+                    基本信息
+                </MudText>
+
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudStack Spacing="3">
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">用户名</MudText>
+                                <MudText Typo="Typo.body1">@user.Username</MudText>
+                            </MudStack>
+
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">邮箱地址</MudText>
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudText Typo="Typo.body1">@user.Email</MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Email"
+                                                   Size="Size.Small"
+                                                   Href="@($"mailto:{user.Email}")"
+                                                   Target="_blank"
+                                                   Title="发送邮件" />
+                                </MudStack>
+                            </MudStack>
+
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">账户状态</MudText>
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    @if (user.IsActive)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                                        <MudText Typo="Typo.body1" Color="Color.Success">正常</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" />
+                                        <MudText Typo="Typo.body1" Color="Color.Error">已禁用</MudText>
+                                    }
+                                </MudStack>
+                            </MudStack>
+                        </MudStack>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudStack Spacing="3">
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">创建时间</MudText>
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.body1">@user.CreatedAt.ToString("yyyy年MM月dd日")</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @user.CreatedAt.ToString("HH:mm:ss")
+                                    </MudText>
+                                </MudStack>
+                            </MudStack>
+
+                            @if (user.UpdatedAt.HasValue)
+                            {
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">最后更新</MudText>
+                                    <MudStack Spacing="0">
+                                        <MudText Typo="Typo.body1">@user.UpdatedAt.Value.ToString("yyyy年MM月dd日")</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            @user.UpdatedAt.Value.ToString("HH:mm:ss")
+                                        </MudText>
+                                    </MudStack>
+                                </MudStack>
+                            }
+
+                            <MudStack Spacing="1">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">注册天数</MudText>
+                                <MudText Typo="Typo.body1">
+                                    @((DateTime.Now - user.CreatedAt).Days) 天
+                                </MudText>
+                            </MudStack>
+                        </MudStack>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- 用户权限信息（预留） -->
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.Security" Class="mr-2" />
+                    权限信息
+                </MudText>
+
+                <MudAlert Severity="Severity.Info">
+                    <MudText>用户角色和权限信息功能即将推出...</MudText>
+                </MudAlert>
+            </MudPaper>
+
+            <!-- 操作历史（预留） -->
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.History" Class="mr-2" />
+                    操作历史
+                </MudText>
+
+                <MudAlert Severity="Severity.Info">
+                    <MudText>用户操作历史记录功能即将推出...</MudText>
+                </MudAlert>
+            </MudPaper>
+        </MudStack>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public int UserId { get; set; }
+
+    private UserDto? user;
+    private bool isLoading = true;
+    private bool hasError = false;
+    private string errorMessage = "";
+
+    // 面包屑导航
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        InitializeBreadcrumbs();
+        await LoadUserDetail();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // 当路由参数变化时重新加载
+        if (UserId > 0)
+        {
+            await LoadUserDetail();
+        }
+    }
+
+    private void InitializeBreadcrumbs()
+    {
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("首页", href: "/", icon: Icons.Material.Filled.Home),
+            new BreadcrumbItem("用户管理", href: "/users", icon: Icons.Material.Filled.People),
+            new BreadcrumbItem("用户详情", href: null, disabled: true, icon: Icons.Material.Filled.Person)
+        };
+    }
+
+    private async Task LoadUserDetail()
+    {
+        try
+        {
+            isLoading = true;
+            hasError = false;
+            StateHasChanged();
+
+            var response = await UserApi.GetUserByIdAsync(UserId);
+
+            if (response.Success && response.Data != null)
+            {
+                user = response.Data;
+
+                // 更新页面标题中的用户名
+                _breadcrumbItems[2] = new BreadcrumbItem($"用户详情 - {user.Username}", href: null, disabled: true, icon: Icons.Material.Filled.Person);
+            }
+            else
+            {
+                hasError = true;
+                errorMessage = response.Message ?? "获取用户详情失败";
+
+                if (response.Message?.Contains("不存在") == true)
+                {
+                    errorMessage = $"用户 ID {UserId} 不存在，可能已被删除";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            hasError = true;
+            errorMessage = $"网络错误：{ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/users");
+    }
+
+    private void EditUser()
+    {
+        Navigation.NavigateTo($"/users/{UserId}/edit");
+    }
+}
