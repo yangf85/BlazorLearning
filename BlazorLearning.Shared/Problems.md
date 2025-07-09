@@ -2147,3 +2147,247 @@ private async Task MinimalReproduction()
 - 问题解决能力的提升比具体技术掌握更重要
 - 用户体验意识的培养对专业发展很关键
 - 系统性的学习方法比零散的知识点更有价值
+
+## Day 11 问题汇总（2025年7月8日）
+
+### 1. 角色API接口命名规范统一问题
+
+**问题描述**：在创建角色API接口定义时，发现后端控制器使用`CreateRoleRequest`、`UpdateRoleRequest`命名，需要与前端接口定义保持一致
+
+**解决方案**：
+- 统一采用`Request`后缀表示请求模型
+- 统一采用`Response`后缀表示响应模型  
+- 统一采用`Dto`后缀表示数据传输对象
+- 更新`IRoleApi`接口定义以匹配后端命名规范
+
+**学习要点**：
+- 项目命名规范的重要性和一致性
+- 前后端接口契约的严格匹配要求
+- 团队协作中命名约定的价值
+
+### 2. MudBlazor组件泛型类型参数编译错误
+
+**问题描述**：在角色列表页面使用MudBlazor组件时出现泛型类型推断失败的编译错误
+
+**错误信息**：
+```
+RZ10001: The type of component 'MudChip' cannot be inferred based on the values provided. 
+Consider specifying the type arguments directly using the following attributes: 'T'.
+```
+
+**解决方案**：
+为MudBlazor组件明确指定泛型类型参数：
+```razor
+<!-- 修改前 -->
+<MudChip Color="Color.Success" Size="Size.Small">正常</MudChip>
+
+<!-- 修改后 -->
+<MudChip T="string" Color="Color.Success" Size="Size.Small">正常</MudChip>
+```
+
+**学习要点**：
+- MudBlazor v6+版本中泛型组件的类型要求
+- 明确类型声明比类型推断更可靠
+- 编译时类型检查的重要性
+
+### 3. Blazor Server预渲染期间JWT Token获取失败问题 ⚠️【未解决】
+
+**问题描述**：Blazor Server项目中，TokenService无法在页面加载时正确获取已存储的JWT Token，导致认证头添加失败
+
+**问题现象**：
+- 用户成功登录，Token正常存储到Session Storage
+- 但页面加载时`TokenService.GetTokenAsync()`返回null
+- API调用时`AuthHttpMessageHandler`无法添加Authorization头
+- 所有需要认证的API调用返回401 Unauthorized
+
+**问题分析过程**：
+
+1. **确认Token存储正常**：
+   - 浏览器Session Storage中确实有`authToken`
+   - 值为完整的JWT Token字符串
+
+2. **确认Token读取失败**：
+   - `ProtectedSessionStorage.GetAsync<string>("authToken")`返回失败
+   - 即使在`OnAfterRenderAsync(firstRender: true)`中调用也失败
+
+3. **手动设置测试**：
+   - 通过浏览器控制台手动设置`sessionStorage.setItem('authToken', 'token')`
+   - TokenService能够正常读取手动设置的Token
+   - 说明问题在于`ProtectedSessionStorage`和原生`sessionStorage`使用不同存储机制
+
+**尝试的解决方案**：
+
+1. ❌ **修改加载时机**：使用`OnAfterRenderAsync(firstRender)`替代`OnInitializedAsync`
+2. ❌ **添加延迟等待**：在Token获取前添加延迟（100ms到5秒）
+3. ❌ **改用服务端Session**：使用`IHttpContextAccessor`和`HttpContext.Session`
+4. ❌ **改用内存存储**：使用`ConcurrentDictionary`按连接ID存储
+5. ❌ **改用JavaScript调用**：直接使用`IJSRuntime`调用`sessionStorage`
+6. ❌ **重试机制**：在TokenService中添加多次重试逻辑
+
+**根本原因分析**：
+- **Blazor Server预渲染机制**：页面在服务端预渲染时无法访问客户端存储
+- **ProtectedSessionStorage限制**：在预渲染阶段不可用，需要完整的JavaScript环境
+- **状态同步问题**：不同页面或组件间的Session Storage状态不一致
+- **时序冲突**：Token存储和读取的时机存在竞争条件
+
+**当前临时解决方案**：
+```csharp
+// 临时注释控制器认证特性
+[ApiController]
+[Route("api/users")]
+// [Authorize] // 临时注释，开发完成后再启用
+public class UserController : BaseApiController
+
+[Route("api/roles")]
+// [Authorize] // 临时注释，开发完成后再启用  
+public class RoleController : BaseApiController
+```
+
+**技术债务记录**：
+- **优先级**：高（影响系统安全性）
+- **影响范围**：所有需要认证的API调用
+- **临时措施**：移除API认证要求
+- **后续计划**：在Day 14之前专项研究Blazor Server认证最佳实践
+
+**需要研究的方向**：
+1. Blazor Server认证的官方推荐方案
+2. 服务端渲染和客户端认证的兼容性处理
+3. Token存储的替代方案（Cookies、服务端Session等）
+4. 预渲染期间的认证状态管理策略
+
+**学习要点**：
+- Blazor Server架构的特殊性和限制
+- 预渲染机制对客户端存储的影响
+- 认证系统在不同渲染模式下的挑战
+- 技术债务的识别、记录和管理方法
+
+### 4. 角色CRUD界面的智能更改检测实现
+
+**问题描述**：如何在角色编辑页面实现智能的更改检测，提供用户友好的编辑体验
+
+**解决方案**：
+实现原值对比和实时更改跟踪：
+```csharp
+private bool HasChanges()
+{
+    if (originalRole == null) return false;
+    
+    return editModel.Name != originalRole.Name ||
+           editModel.DisplayName != (originalRole.DisplayName ?? "") ||
+           editModel.Description != (originalRole.Description ?? "") ||
+           editModel.IsActive != originalRole.IsActive;
+}
+
+private string GetNameHelperText()
+{
+    if (editModel?.Name != originalRole?.Name)
+        return $"原角色名：{originalRole?.Name}";
+    return "角色的英文标识，用于系统内部识别";
+}
+```
+
+**用户体验特色**：
+- 实时显示是否有未保存的更改
+- 动态帮助文本显示原值对比
+- 条件操作按钮（只有有更改时才能保存）
+- 撤销更改功能（一键恢复原始值）
+
+**学习要点**：
+- 用户体验设计的细节重要性
+- 状态管理在表单编辑中的应用
+- 动态UI反馈的实现方法
+
+### 5. Refit API客户端的服务注册和配置
+
+**问题描述**：如何正确配置Refit客户端以支持角色管理API调用
+
+**解决方案**：
+在`Program.cs`中添加角色API客户端注册：
+```csharp
+builder.Services.AddRefitClient<IRoleApi>()
+    .ConfigureHttpClient(c =>
+    {
+        c.BaseAddress = new Uri(apiBaseUrl);
+        c.Timeout = TimeSpan.FromSeconds(30);
+    })
+    .AddHttpMessageHandler<AuthHttpMessageHandler>();
+```
+
+**配置要点**：
+- 保持与用户API客户端相同的配置模式
+- 添加认证消息处理器（虽然暂时禁用）
+- 设置合理的超时时间
+- 使用统一的API基础地址
+
+**学习要点**：
+- Refit客户端的标准配置模式
+- HTTP客户端的统一管理策略
+- 依赖注入在HTTP客户端中的应用
+
+### 6. 角色表单验证规则的设计和实现
+
+**问题描述**：如何为角色名称设计合适的验证规则，确保数据质量
+
+**解决方案**：
+实现多层次的验证规则：
+```csharp
+private IEnumerable<string> ValidateRoleName(string roleName)
+{
+    if (string.IsNullOrWhiteSpace(roleName))
+    {
+        yield return "角色名称不能为空";
+    }
+    else if (roleName.Length < 2)
+    {
+        yield return "角色名称至少需要2个字符";
+    }
+    else if (roleName.Length > 50)
+    {
+        yield return "角色名称不能超过50个字符";
+    }
+    else if (!System.Text.RegularExpressions.Regex.IsMatch(roleName, @"^[a-zA-Z][a-zA-Z0-9_-]*$"))
+    {
+        yield return "角色名称必须以字母开头，只能包含字母、数字、下划线和连字符";
+    }
+}
+```
+
+**验证特色**：
+- 必填验证：确保关键字段不为空
+- 长度验证：控制数据存储边界
+- 格式验证：确保符合系统命名规范
+- 实时反馈：用户输入时即时显示验证结果
+
+**学习要点**：
+- 前端数据验证的重要性
+- 业务规则在验证中的体现
+- 用户友好的错误提示设计
+
+### 7. 导航菜单和面包屑导航的集成
+
+**问题描述**：如何将角色管理功能集成到现有的导航体系中
+
+**解决方案**：
+在`NavMenu.razor`中添加角色管理导航项：
+```razor
+<MudNavLink Href="/roles" 
+            Icon="@Icons.Material.Filled.AdminPanelSettings" 
+            IconColor="Color.Secondary">
+    角色管理
+</MudNavLink>
+```
+
+在各个角色页面中实现动态面包屑：
+```csharp
+private List<BreadcrumbItem> _breadcrumbItems = new()
+{
+    new BreadcrumbItem("首页", href: "/", icon: Icons.Material.Filled.Home),
+    new BreadcrumbItem("角色管理", href: "/roles", icon: Icons.Material.Filled.AdminPanelSettings),
+    new BreadcrumbItem("角色详情", href: null, disabled: true, icon: Icons.Material.Filled.Visibility)
+};
+```
+
+**学习要点**：
+- 导航体系的一致性设计
+- 面包屑导航的层级关系
+- 图标选择和颜色搭配的用户体验考虑

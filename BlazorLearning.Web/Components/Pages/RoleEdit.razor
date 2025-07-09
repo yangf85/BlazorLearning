@@ -1,0 +1,364 @@
+﻿@page "/roles/{RoleId:int}/edit"
+@using BlazorLearning.Shared.ApiServices
+@using BlazorLearning.Shared.Models
+@inject IRoleApi RoleApi
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>编辑角色 - @(originalRole?.Name ?? "加载中")</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="pa-6">
+    <!-- 面包屑导航 -->
+    <MudBreadcrumbs Items="_breadcrumbItems" Class="mb-4" />
+
+    @if (isLoading)
+    {
+        <MudStack AlignItems="AlignItems.Center" Class="pa-8">
+            <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+            <MudText Class="mt-2">加载角色信息...</MudText>
+        </MudStack>
+    }
+    else if (hasError)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">
+            <MudText><strong>加载失败</strong></MudText>
+            <MudText>@errorMessage</MudText>
+            <MudStack Row="true" Class="mt-3" Spacing="2">
+                <MudButton Color="Color.Error"
+                           Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadRoleData">
+                    重试
+                </MudButton>
+                <MudButton Color="Color.Default"
+                           Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="NavigateBack">
+                    返回列表
+                </MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+    else if (originalRole != null)
+    {
+        <MudStack Spacing="4">
+            <!-- 页面头部 -->
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudStack Spacing="2">
+                    <MudText Typo="Typo.h4" Color="Color.Primary">
+                        <MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" />
+                        编辑角色：@originalRole.Name
+                    </MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        修改角色信息，更改将立即生效
+                    </MudText>
+                    @if (HasChanges())
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true">
+                            <MudText Typo="Typo.body2">检测到未保存的更改</MudText>
+                        </MudAlert>
+                    }
+                </MudStack>
+            </MudPaper>
+
+            <!-- 编辑表单 -->
+            <MudPaper Class="pa-6" Elevation="1">
+                <MudForm @ref="form" @bind-IsValid="@isFormValid">
+                    <MudStack Spacing="4">
+                        <!-- 基本信息 -->
+                        <MudStack Spacing="3">
+                            <MudText Typo="Typo.h6" Color="Color.Primary">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
+                                基本信息
+                            </MudText>
+
+                            <MudDivider />
+
+                            <MudGrid>
+                                <MudItem xs="12" md="6">
+                                    <MudTextField @bind-Value="editModel.Name"
+                                                  Label="角色名称"
+                                                  Placeholder="如：Admin, User, Guest"
+                                                  HelperText="@GetNameHelperText()"
+                                                  Required="true"
+                                                  RequiredError="角色名称不能为空"
+                                                  Validation="@(new Func<string, IEnumerable<string>>(ValidateRoleName))"
+                                                  Immediate="true"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Badge" />
+                                </MudItem>
+
+                                <MudItem xs="12" md="6">
+                                    <MudTextField @bind-Value="editModel.DisplayName"
+                                                  Label="显示名称"
+                                                  Placeholder="如：管理员, 普通用户, 访客"
+                                                  HelperText="@GetDisplayNameHelperText()"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Label" />
+                                </MudItem>
+
+                                <MudItem xs="12">
+                                    <MudTextField @bind-Value="editModel.Description"
+                                                  Label="角色描述"
+                                                  Placeholder="描述角色的职责和权限范围"
+                                                  HelperText="@GetDescriptionHelperText()"
+                                                  Lines="3"
+                                                  MaxLength="500"
+                                                  Counter="500"
+                                                  Adornment="Adornment.Start"
+                                                  AdornmentIcon="@Icons.Material.Filled.Description" />
+                                </MudItem>
+
+                                <MudItem xs="12">
+                                    <MudSwitch @bind-Value="editModel.IsActive"
+                                               Label="启用角色"
+                                               Color="Color.Success"
+                                               UnCheckedColor="Color.Default" />
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                                        @(editModel.IsActive ? "角色将立即生效，可分配给用户" : "角色将被禁用，不能分配给新用户")
+                                    </MudText>
+                                </MudItem>
+                            </MudGrid>
+                        </MudStack>
+
+                        <!-- 操作按钮 -->
+                        <MudDivider />
+
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                            <MudStack Row="true" Spacing="2">
+                                <MudButton Variant="Variant.Text"
+                                           Color="Color.Default"
+                                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                                           OnClick="NavigateBack">
+                                    返回列表
+                                </MudButton>
+
+                                <MudButton Variant="Variant.Text"
+                                           Color="Color.Info"
+                                           StartIcon="@Icons.Material.Filled.Visibility"
+                                           OnClick="NavigateToDetail">
+                                    查看详情
+                                </MudButton>
+                            </MudStack>
+
+                            <MudStack Row="true" Spacing="2">
+                                @if (HasChanges())
+                                {
+                                    <MudButton Variant="Variant.Outlined"
+                                               Color="Color.Secondary"
+                                               StartIcon="@Icons.Material.Filled.Undo"
+                                               OnClick="ResetChanges"
+                                               Disabled="@isSubmitting">
+                                        撤销更改
+                                    </MudButton>
+                                }
+
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Warning"
+                                           StartIcon="@Icons.Material.Filled.Save"
+                                           OnClick="UpdateRole"
+                                           Disabled="@(!isFormValid || !HasChanges() || isSubmitting)">
+                                    @if (isSubmitting)
+                                    {
+                                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                                        <MudText Class="ms-2">保存中...</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText>保存更改</MudText>
+                                    }
+                                </MudButton>
+                            </MudStack>
+                        </MudStack>
+                    </MudStack>
+                </MudForm>
+            </MudPaper>
+        </MudStack>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public int RoleId { get; set; }
+
+    private MudForm form = null!;
+    private bool isFormValid;
+    private bool isSubmitting = false;
+    private bool isLoading = true;
+    private bool hasError = false;
+    private string errorMessage = string.Empty;
+
+    private RoleDto? originalRole;
+    private UpdateRoleRequest editModel = new();
+
+    // 面包屑导航
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRoleData();
+    }
+
+    private async Task LoadRoleData()
+    {
+        try
+        {
+            isLoading = true;
+            hasError = false;
+            StateHasChanged();
+
+            var response = await RoleApi.GetRoleByIdAsync(RoleId);
+
+            if (response.Success && response.Data != null)
+            {
+                originalRole = response.Data;
+                // 复制原始数据到编辑模型
+                editModel = new UpdateRoleRequest
+                {
+                    Name = originalRole.Name,
+                    DisplayName = originalRole.DisplayName ?? "",
+                    Description = originalRole.Description ?? "",
+                    IsActive = originalRole.IsActive
+                };
+                UpdateBreadcrumbs();
+            }
+            else
+            {
+                hasError = true;
+                errorMessage = response.Message ?? "获取角色信息失败";
+                Snackbar.Add(errorMessage, Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            hasError = true;
+            errorMessage = $"系统错误：{ex.Message}";
+            Snackbar.Add(errorMessage, Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task UpdateRole()
+    {
+        if (!isFormValid || !HasChanges() || isSubmitting)
+            return;
+
+        try
+        {
+            isSubmitting = true;
+            StateHasChanged();
+
+            var response = await RoleApi.UpdateRoleAsync(RoleId, editModel);
+
+            if (response.Success)
+            {
+                Snackbar.Add("角色更新成功！", Severity.Success);
+                Navigation.NavigateTo("/roles");
+            }
+            else
+            {
+                Snackbar.Add($"更新失败：{response.Message}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"系统错误：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private bool HasChanges()
+    {
+        if (originalRole == null) return false;
+
+        return editModel.Name != originalRole.Name ||
+               editModel.DisplayName != (originalRole.DisplayName ?? "") ||
+               editModel.Description != (originalRole.Description ?? "") ||
+               editModel.IsActive != originalRole.IsActive;
+    }
+
+    private void ResetChanges()
+    {
+        if (originalRole != null)
+        {
+            editModel = new UpdateRoleRequest
+            {
+                Name = originalRole.Name,
+                DisplayName = originalRole.DisplayName ?? "",
+                Description = originalRole.Description ?? "",
+                IsActive = originalRole.IsActive
+            };
+            StateHasChanged();
+        }
+    }
+
+    private void UpdateBreadcrumbs()
+    {
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("首页", href: "/", icon: Icons.Material.Filled.Home),
+            new BreadcrumbItem("角色管理", href: "/roles", icon: Icons.Material.Filled.AdminPanelSettings),
+            new BreadcrumbItem(originalRole?.Name ?? "角色编辑", href: $"/roles/{RoleId}", icon: Icons.Material.Filled.Visibility),
+            new BreadcrumbItem("编辑", href: null, disabled: true, icon: Icons.Material.Filled.Edit)
+        };
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/roles");
+    }
+
+    private void NavigateToDetail()
+    {
+        Navigation.NavigateTo($"/roles/{RoleId}");
+    }
+
+    private IEnumerable<string> ValidateRoleName(string roleName)
+    {
+        if (string.IsNullOrWhiteSpace(roleName))
+        {
+            yield return "角色名称不能为空";
+        }
+        else if (roleName.Length < 2)
+        {
+            yield return "角色名称至少需要2个字符";
+        }
+        else if (roleName.Length > 50)
+        {
+            yield return "角色名称不能超过50个字符";
+        }
+        else if (!System.Text.RegularExpressions.Regex.IsMatch(roleName, @"^[a-zA-Z][a-zA-Z0-9_-]*$"))
+        {
+            yield return "角色名称必须以字母开头，只能包含字母、数字、下划线和连字符";
+        }
+    }
+
+    private string GetNameHelperText()
+    {
+        if (editModel?.Name != originalRole?.Name)
+            return $"原角色名：{originalRole?.Name}";
+        return "角色的英文标识，用于系统内部识别";
+    }
+
+    private string GetDisplayNameHelperText()
+    {
+        if (editModel?.DisplayName != (originalRole?.DisplayName ?? ""))
+            return $"原显示名：{(string.IsNullOrEmpty(originalRole?.DisplayName) ? "无" : originalRole.DisplayName)}";
+        return "角色的中文显示名称";
+    }
+
+    private string GetDescriptionHelperText()
+    {
+        var length = editModel?.Description?.Length ?? 0;
+        var hasChanged = editModel?.Description != (originalRole?.Description ?? "");
+        var changeText = hasChanged ? " (已修改)" : "";
+        return $"已输入 {length}/500 字符{changeText}";
+    }
+}

@@ -31,4 +31,6 @@ public class UpdateRoleRequest
     /// </summary>
     [StringLength(500, ErrorMessage = "角色描述不能超过500个字符")]
     public string? Description { get; set; }
+
+    public bool IsActive { get; set; }
 }

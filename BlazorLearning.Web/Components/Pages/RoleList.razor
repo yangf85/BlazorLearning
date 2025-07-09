@@ -1,0 +1,242 @@
+﻿@page "/roles"
+@using BlazorLearning.Shared.ApiServices
+@using BlazorLearning.Shared.Models
+@using BlazorLearning.Web.Services
+@inject IRoleApi RoleApi
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject ITokenService TokenService
+
+<PageTitle>角色管理</PageTitle>
+<MudButton Variant="Variant.Outlined"
+           Color="Color.Info"
+           OnClick="DebugToken"
+           Class="mb-4">
+    调试Token状态
+</MudButton>
+<MudContainer MaxWidth="MaxWidth.Large" Class="pa-6">
+    <!-- 页面标题 -->
+    <MudStack Spacing="4">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudStack Spacing="1">
+                    <MudText Typo="Typo.h4" Color="Color.Primary">
+                        <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Class="mr-2" />
+                        角色管理
+                    </MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        管理系统角色，控制用户权限访问
+                    </MudText>
+                </MudStack>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="NavigateToCreate">
+                    新建角色
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+
+        <!-- 角色列表 -->
+        @if (isLoading)
+        {
+            <MudStack AlignItems="AlignItems.Center" Class="pa-8">
+                <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+                <MudText Class="mt-2">加载角色列表...</MudText>
+            </MudStack>
+        }
+        else if (hasError)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">
+                <MudText><strong>加载失败</strong></MudText>
+                <MudText>@errorMessage</MudText>
+                <MudStack Row="true" Class="mt-3" Spacing="2">
+                    <MudButton Color="Color.Error"
+                               Variant="Variant.Text"
+                               StartIcon="@Icons.Material.Filled.Refresh"
+                               OnClick="LoadRoles">
+                        重试
+                    </MudButton>
+                </MudStack>
+            </MudAlert>
+        }
+        else
+        {
+            <MudPaper Elevation="1">
+                <MudTable Items="@roles"
+                          Hover="true"
+                          Dense="true"
+                          FixedHeader="true">
+                    <HeaderContent>
+                        <MudTh>ID</MudTh>
+                        <MudTh>角色名称</MudTh>
+                        <MudTh>显示名称</MudTh>
+                        <MudTh>描述</MudTh>
+                        <MudTh>状态</MudTh>
+                        <MudTh>创建时间</MudTh>
+                        <MudTh>操作</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ID">@context.Id</MudTd>
+                        <MudTd DataLabel="角色名称">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudAvatar Color="Color.Primary" Size="Size.Small">
+                                    @context.Name.Substring(0, 1).ToUpper()
+                                </MudAvatar>
+                                <MudText Typo="Typo.body2"><strong>@context.Name</strong></MudText>
+                            </MudStack>
+                        </MudTd>
+                        <MudTd DataLabel="显示名称">
+                            <MudText Typo="Typo.body2">@context.DisplayName</MudText>
+                        </MudTd>
+                        <MudTd DataLabel="描述">
+                            <MudText Typo="Typo.body2">
+                                @(string.IsNullOrEmpty(context.Description) ? "无描述" : context.Description)
+                            </MudText>
+                        </MudTd>
+                        <MudTd DataLabel="状态">
+                            @if (context.IsActive)
+                            {
+                                <MudChip T="string" Color="Color.Success" Size="Size.Small">正常</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Color="Color.Error" Size="Size.Small">禁用</MudChip>
+                            }
+                        </MudTd>
+                        <MudTd DataLabel="创建时间">
+                            <MudText Typo="Typo.body2">@context.CreatedAt.ToString("yyyy-MM-dd HH:mm")</MudText>
+                        </MudTd>
+                        <MudTd DataLabel="操作">
+                            <MudStack Row="true" Spacing="1">
+                                <MudIconButton Icon="@Icons.Material.Filled.Visibility"
+                                               Color="Color.Primary"
+                                               Size="Size.Small"
+                                               Title="查看详情"
+                                               OnClick="@(() => NavigateToDetail(context.Id))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Color="Color.Warning"
+                                               Size="Size.Small"
+                                               Title="编辑角色"
+                                               OnClick="@(() => NavigateToEdit(context.Id))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Color="Color.Error"
+                                               Size="Size.Small"
+                                               Title="删除角色"
+                                               OnClick="@(() => ConfirmDelete(context))" />
+                            </MudStack>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        }
+    </MudStack>
+</MudContainer>
+
+@code {
+
+    private async Task DebugToken()
+    {
+        try
+        {
+            Console.WriteLine("[DEBUG] 开始获取Token...");
+
+            var isAuthenticated = await TokenService.IsAuthenticatedAsync();
+            Console.WriteLine($"[DEBUG] 是否已认证: {isAuthenticated}");
+
+            var token = await TokenService.GetTokenAsync();
+            Console.WriteLine($"[DEBUG] Token是否为空: {string.IsNullOrEmpty(token)}");
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                Console.WriteLine($"[DEBUG] Token前10个字符: {token.Substring(0, Math.Min(10, token.Length))}...");
+            }
+
+            var username = await TokenService.GetUsernameAsync();
+            Console.WriteLine($"[DEBUG] 用户名: {username ?? "null"}");
+
+            Snackbar.Add($"Token调试: 认证={isAuthenticated}, Token={(!string.IsNullOrEmpty(token) ? "有值" : "空")}, 用户={username ?? "null"}", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[DEBUG] Token调试异常: {ex.Message}");
+            Snackbar.Add($"Token调试异常: {ex.Message}", Severity.Error);
+        }
+    }
+
+    // 数据相关
+    private List<RoleDto> roles = new();
+
+    // 状态相关
+    private bool isLoading = true;
+    private bool hasError = false;
+    private string errorMessage = string.Empty;
+
+    private bool hasLoaded = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRoles();
+    }
+
+ 
+
+ 
+   
+    private async Task LoadRoles()
+    {
+        try
+        {
+            isLoading = true;
+            hasError = false;
+            StateHasChanged();
+
+            var response = await RoleApi.GetAllRolesAsync();
+
+            if (response.Success && response.Data != null)
+            {
+                roles = response.Data;
+                Snackbar.Add($"成功加载 {roles.Count} 个角色", Severity.Success);
+            }
+            else
+            {
+                hasError = true;
+                errorMessage = response.Message ?? "加载角色列表失败";
+                Snackbar.Add(errorMessage, Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            hasError = true;
+            errorMessage = $"系统错误：{ex.Message}";
+            Snackbar.Add(errorMessage, Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void NavigateToCreate()
+    {
+        Navigation.NavigateTo("/roles/create");
+    }
+
+    private void NavigateToDetail(int id)
+    {
+        Navigation.NavigateTo($"/roles/{id}");
+    }
+
+    private void NavigateToEdit(int id)
+    {
+        Navigation.NavigateTo($"/roles/{id}/edit");
+    }
+
+    private async Task ConfirmDelete(RoleDto role)
+    {
+        // TODO: 后续添加删除确认对话框
+        Snackbar.Add("删除功能待实现", Severity.Info);
+    }
+}

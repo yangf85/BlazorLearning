@@ -2,6 +2,7 @@
 using BlazorLearning.Api.Repositories;
 using BlazorLearning.Shared.Models;
 using BlazorLearning.Shared.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,6 +10,7 @@ namespace BlazorLearning.Api.Controllers;
 
 [ApiController]
 [Route("api/users")]
+[Authorize]
 public class UserController : BaseApiController
 {
     private readonly IUserRepository _userRepository;

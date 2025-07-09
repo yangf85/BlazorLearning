@@ -1,0 +1,249 @@
+﻿@page "/roles/{RoleId:int}"
+@using BlazorLearning.Shared.ApiServices
+@using BlazorLearning.Shared.Models
+@inject IRoleApi RoleApi
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>角色详情 - @(role?.Name ?? "加载中")</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="pa-6">
+    <!-- 面包屑导航 -->
+    <MudBreadcrumbs Items="_breadcrumbItems" Class="mb-4" />
+
+    @if (isLoading)
+    {
+        <MudStack AlignItems="AlignItems.Center" Class="pa-8">
+            <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+            <MudText Class="mt-2">加载角色详情...</MudText>
+        </MudStack>
+    }
+    else if (hasError)
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">
+            <MudText><strong>加载失败</strong></MudText>
+            <MudText>@errorMessage</MudText>
+            <MudStack Row="true" Class="mt-3" Spacing="2">
+                <MudButton Color="Color.Error"
+                           Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           OnClick="LoadRoleDetail">
+                    重试
+                </MudButton>
+                <MudButton Color="Color.Default"
+                           Variant="Variant.Text"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="NavigateBack">
+                    返回列表
+                </MudButton>
+            </MudStack>
+        </MudAlert>
+    }
+    else if (role != null)
+    {
+        <MudStack Spacing="4">
+            <!-- 页面头部 -->
+            <MudPaper Class="pa-4" Elevation="1">
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                        <MudAvatar Color="Color.Primary" Size="Size.Large">
+                            @role.Name.Substring(0, 1).ToUpper()
+                        </MudAvatar>
+                        <MudStack Spacing="1">
+                            <MudText Typo="Typo.h4" Color="Color.Primary">
+                                @role.Name
+                            </MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                @(string.IsNullOrEmpty(role.DisplayName) ? "无显示名称" : role.DisplayName)
+                            </MudText>
+                        </MudStack>
+                    </MudStack>
+
+                    <MudStack Row="true" Spacing="2">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Warning"
+                                   StartIcon="@Icons.Material.Filled.Edit"
+                                   OnClick="NavigateToEdit">
+                            编辑角色
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Default"
+                                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                                   OnClick="NavigateBack">
+                            返回列表
+                        </MudButton>
+                    </MudStack>
+                </MudStack>
+            </MudPaper>
+
+            <!-- 角色详细信息 -->
+            <MudGrid>
+                <!-- 基本信息 -->
+                <MudItem xs="12" md="8">
+                    <MudPaper Class="pa-4" Elevation="1">
+                        <MudStack Spacing="3">
+                            <MudText Typo="Typo.h6" Color="Color.Primary">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
+                                基本信息
+                            </MudText>
+
+                            <MudDivider />
+
+                            <MudStack Spacing="3">
+                                <MudStack Row="true" Spacing="4">
+                                    <MudStack Spacing="1" Class="flex-1">
+                                        <MudText Typo="Typo.body2" Color="Color.Secondary">角色ID</MudText>
+                                        <MudText Typo="Typo.body1"><strong>@role.Id</strong></MudText>
+                                    </MudStack>
+                                    <MudStack Spacing="1" Class="flex-1">
+                                        <MudText Typo="Typo.body2" Color="Color.Secondary">角色名称</MudText>
+                                        <MudText Typo="Typo.body1"><strong>@role.Name</strong></MudText>
+                                    </MudStack>
+                                </MudStack>
+
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">显示名称</MudText>
+                                    <MudText Typo="Typo.body1">
+                                        @(string.IsNullOrEmpty(role.DisplayName) ? "无显示名称" : role.DisplayName)
+                                    </MudText>
+                                </MudStack>
+
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">角色描述</MudText>
+                                    <MudText Typo="Typo.body1">
+                                        @(string.IsNullOrEmpty(role.Description) ? "无描述信息" : role.Description)
+                                    </MudText>
+                                </MudStack>
+
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">状态</MudText>
+                                    @if (role.IsActive)
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.CheckCircle">
+                                            正常
+                                        </MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Color="Color.Error" Icon="@Icons.Material.Filled.Cancel">
+                                            禁用
+                                        </MudChip>
+                                    }
+                                </MudStack>
+                            </MudStack>
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+
+                <!-- 时间信息 -->
+                <MudItem xs="12" md="4">
+                    <MudPaper Class="pa-4" Elevation="1">
+                        <MudStack Spacing="3">
+                            <MudText Typo="Typo.h6" Color="Color.Primary">
+                                <MudIcon Icon="@Icons.Material.Filled.Schedule" Class="mr-2" />
+                                时间信息
+                            </MudText>
+
+                            <MudDivider />
+
+                            <MudStack Spacing="3">
+                                <MudStack Spacing="1">
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">创建时间</MudText>
+                                    <MudText Typo="Typo.body1">@role.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</MudText>
+                                </MudStack>
+
+                                @if (role.UpdatedAt.HasValue)
+                                {
+                                    <MudStack Spacing="1">
+                                        <MudText Typo="Typo.body2" Color="Color.Secondary">更新时间</MudText>
+                                        <MudText Typo="Typo.body1">@role.UpdatedAt.Value.ToString("yyyy-MM-dd HH:mm:ss")</MudText>
+                                    </MudStack>
+                                }
+                                else
+                                {
+                                    <MudStack Spacing="1">
+                                        <MudText Typo="Typo.body2" Color="Color.Secondary">更新时间</MudText>
+                                        <MudText Typo="Typo.body1" Class="text-muted">未更新过</MudText>
+                                    </MudStack>
+                                }
+                            </MudStack>
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudStack>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public int RoleId { get; set; }
+
+    private RoleDto? role;
+    private bool isLoading = true;
+    private bool hasError = false;
+    private string errorMessage = string.Empty;
+
+    // 面包屑导航
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRoleDetail();
+        UpdateBreadcrumbs();
+    }
+
+    private async Task LoadRoleDetail()
+    {
+        try
+        {
+            isLoading = true;
+            hasError = false;
+            StateHasChanged();
+
+            var response = await RoleApi.GetRoleByIdAsync(RoleId);
+
+            if (response.Success && response.Data != null)
+            {
+                role = response.Data;
+                UpdateBreadcrumbs();
+            }
+            else
+            {
+                hasError = true;
+                errorMessage = response.Message ?? "获取角色详情失败";
+                Snackbar.Add(errorMessage, Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            hasError = true;
+            errorMessage = $"系统错误：{ex.Message}";
+            Snackbar.Add(errorMessage, Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void UpdateBreadcrumbs()
+    {
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("首页", href: "/", icon: Icons.Material.Filled.Home),
+            new BreadcrumbItem("角色管理", href: "/roles", icon: Icons.Material.Filled.AdminPanelSettings),
+            new BreadcrumbItem(role?.Name ?? "角色详情", href: null, disabled: true, icon: Icons.Material.Filled.Visibility)
+        };
+    }
+
+    private void NavigateToEdit()
+    {
+        Navigation.NavigateTo($"/roles/{RoleId}/edit");
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/roles");
+    }
+}

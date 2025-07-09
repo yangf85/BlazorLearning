@@ -1,9 +1,7 @@
 ﻿@page "/login"
-@using BlazorLearning.Shared.ApiServices
 @using BlazorLearning.Shared.Models
 @using BlazorLearning.Web.Services
-@inject IAuthApi AuthApi
-@inject ITokenService TokenService
+@inject AuthService AuthService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
@@ -69,17 +67,16 @@
         isLoading = true;
         try
         {
-            var result = await AuthApi.LoginAsync(loginRequest);
+            var (success, message) = await AuthService.LoginAsync(loginRequest.Username, loginRequest.Password);
 
-            if (result.Success && result.Data != null)
+            if (success)
             {
-                await TokenService.SetTokenAsync(result.Data.Token);
-                Snackbar.Add("登录成功！", Severity.Success);
+                Snackbar.Add(message, Severity.Success);
                 Navigation.NavigateTo("/");
             }
             else
             {
-                Snackbar.Add(result.Message ?? "登录失败", Severity.Error);
+                Snackbar.Add(message, Severity.Error);
             }
         }
         catch (Exception ex)
