@@ -196,6 +196,11 @@
                                            Title="查看详情"
                                            Size="Size.Small"
                                            OnClick="@(() => ViewUser(context.Id))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.AdminPanelSettings"
+                                           Color="Color.Secondary"
+                                           Title="角色分配"
+                                           Size="Size.Small"
+                                           OnClick="@(() => ManageUserRoles(context.Id))" />
                             <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                            Color="Color.Primary"
                                            Title="编辑用户"
@@ -260,6 +265,11 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadUsers();
+    }
+
+    private void ManageUserRoles(int userId)
+    {
+        Navigation.NavigateTo($"/users/{userId}/roles");
     }
 
     private async Task LoadUsers()

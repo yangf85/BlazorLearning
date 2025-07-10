@@ -1,0 +1,435 @@
+﻿@page "/users/{UserId:int}/roles"
+@using BlazorLearning.Shared.ApiServices
+@using BlazorLearning.Shared.Dtos
+@using BlazorLearning.Shared.Models
+@using Microsoft.AspNetCore.Authorization
+@inject IUserRoleApi UserRoleApi
+@inject IUserApi UserApi
+@inject IRoleApi RoleApi
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@attribute [Authorize]
+
+<PageTitle>用户角色分配</PageTitle>
+
+<!-- 面包屑导航 -->
+<MudBreadcrumbs Items="_breadcrumbItems" Class="mb-4" />
+
+<!-- 页面标题 -->
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-6">
+    <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Size="Size.Large" Color="Color.Primary" />
+    <MudText Typo="Typo.h4">用户角色分配</MudText>
+</MudStack>
+
+@if (isLoading)
+{
+    <MudStack AlignItems="AlignItems.Center" Class="pa-8">
+        <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+        <MudText Class="mt-2">加载数据...</MudText>
+    </MudStack>
+}
+else if (hasError)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">
+        <MudText><strong>加载失败</strong></MudText>
+        <MudText>@errorMessage</MudText>
+        <MudStack Row="true" Class="mt-3" Spacing="2">
+            <MudButton Color="Color.Error"
+                       Variant="Variant.Text"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="LoadData">
+                重试
+            </MudButton>
+            <MudButton Color="Color.Default"
+                       Variant="Variant.Text"
+                       StartIcon="@Icons.Material.Filled.ArrowBack"
+                       OnClick="NavigateBack">
+                返回用户列表
+            </MudButton>
+        </MudStack>
+    </MudAlert>
+}
+else
+{
+    <!-- 用户信息卡片 -->
+    <MudCard Class="mb-6">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                    <MudAvatar Size="Size.Medium" Color="Color.Primary">
+                        <MudIcon Icon="@Icons.Material.Filled.Person" />
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.h6">@currentUser?.Username</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Default">@currentUser?.Email</MudText>
+                    </div>
+                </MudStack>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudText Typo="Typo.body2" Color="Color.Default">
+                当前角色数量：@(userRoles?.Count ?? 0) 个
+            </MudText>
+        </MudCardContent>
+    </MudCard>
+
+    <MudGrid>
+        <!-- 左侧：当前角色 -->
+        <MudItem xs="12" md="6">
+            <MudCard Style="height: 500px;">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.Security" Color="Color.Success" />
+                            <MudText Typo="Typo.h6">当前角色</MudText>
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small">
+                                @(userRoles?.Count ?? 0)
+                            </MudChip>
+                        </MudStack>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Style="height: 400px; overflow-y: auto;">
+                    @if (userRoles?.Any() == true)
+                    {
+                        <MudStack Spacing="2">
+                            @foreach (var role in userRoles)
+                            {
+                                <MudCard Outlined="true" Class="pa-3">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1"><strong>@role.Name</strong></MudText>
+                                            <MudText Typo="Typo.body2" Color="Color.Default">@role.Description</MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Default">
+                                                分配时间：@role.AssignedAt.ToString("yyyy-MM-dd HH:mm")
+                                            </MudText>
+                                        </div>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Remove"
+                                                       Color="Color.Error"
+                                                       Size="Size.Small"
+                                                       OnClick="() => RemoveRole(role.Id)"
+                                                       Disabled="isSubmitting"
+                                                       Title="移除角色" />
+                                    </MudStack>
+                                </MudCard>
+                            }
+                        </MudStack>
+                    }
+                    else
+                    {
+                        <MudStack AlignItems="AlignItems.Center" Class="pa-4">
+                            <MudIcon Icon="@Icons.Material.Filled.SecurityUpdate" Size="Size.Large" Color="Color.Default" />
+                            <MudText Typo="Typo.body1" Color="Color.Default">该用户暂无分配角色</MudText>
+                        </MudStack>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- 右侧：可用角色 -->
+        <MudItem xs="12" md="6">
+            <MudCard Style="height: 500px;">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.Add" Color="Color.Info" />
+                            <MudText Typo="Typo.h6">可分配角色</MudText>
+                            <MudChip T="string" Color="Color.Info" Size="Size.Small">
+                                @(availableRoles?.Count ?? 0)
+                            </MudChip>
+                        </MudStack>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Style="height: 400px; overflow-y: auto;">
+                    @if (availableRoles?.Any() == true)
+                    {
+                        <MudStack Spacing="2">
+                            @foreach (var role in availableRoles)
+                            {
+                                <MudCard Outlined="true" Class="pa-3">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1"><strong>@role.Name</strong></MudText>
+                                            <MudText Typo="Typo.body2" Color="Color.Default">@role.Description</MudText>
+                                            <MudChip T="string"
+                                                     Color="@(role.IsActive ? Color.Success : Color.Default)"
+                                                     Size="Size.Small">
+                                                @(role.IsActive ? "正常" : "禁用")
+                                            </MudChip>
+                                        </div>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Add"
+                                                       Color="Color.Success"
+                                                       Size="Size.Small"
+                                                       OnClick="() => AddRole(role.Id)"
+                                                       Disabled="isSubmitting || !role.IsActive"
+                                                       Title="分配角色" />
+                                    </MudStack>
+                                </MudCard>
+                            }
+                        </MudStack>
+                    }
+                    else
+                    {
+                        <MudStack AlignItems="AlignItems.Center" Class="pa-4">
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" Color="Color.Success" />
+                            <MudText Typo="Typo.body1" Color="Color.Default">所有角色都已分配</MudText>
+                        </MudStack>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <!-- 批量操作区域 -->
+    <MudCard Class="mt-6">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Settings" Color="Color.Warning" />
+                    <MudText Typo="Typo.h6">批量操作</MudText>
+                </MudStack>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardActions>
+            <MudStack Row="true" Spacing="3">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Clear"
+                           OnClick="ClearAllRoles"
+                           Disabled="isSubmitting || userRoles?.Any() != true">
+                    清空所有角色
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="NavigateBack">
+                    返回用户列表
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Person"
+                           OnClick="NavigateToUserDetail">
+                    查看用户详情
+                </MudButton>
+            </MudStack>
+        </MudCardActions>
+    </MudCard>
+}
+
+@code {
+    [Parameter] public int UserId { get; set; }
+
+    private UserDto? currentUser;
+    private List<RoleInfo>? userRoles;
+    private List<RoleDto>? availableRoles;
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private bool hasError = false;
+    private string errorMessage = string.Empty;
+
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        UpdateBreadcrumbs();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            hasError = false;
+            StateHasChanged();
+
+            // 并行加载所有数据
+            var userTask = UserApi.GetUserByIdAsync(UserId);
+            var userRolesTask = UserRoleApi.GetUserRolesAsync(UserId);
+            var allRolesTask = RoleApi.GetAllRolesAsync();
+
+            await Task.WhenAll(userTask, userRolesTask, allRolesTask);
+
+            var userResponse = await userTask;
+            var userRolesResponse = await userRolesTask;
+            var allRolesResponse = await allRolesTask;
+
+            if (userResponse.Success && userResponse.Data != null)
+            {
+                currentUser = userResponse.Data;
+            }
+            else
+            {
+                hasError = true;
+                errorMessage = userResponse.Message ?? "用户不存在";
+                return;
+            }
+
+            if (userRolesResponse.Success && userRolesResponse.Data != null)
+            {
+                userRoles = userRolesResponse.Data.Roles;
+            }
+            else
+            {
+                userRoles = new List<RoleInfo>();
+            }
+
+            if (allRolesResponse.Success && allRolesResponse.Data != null)
+            {
+                // 过滤出用户还没有的角色
+                var userRoleIds = userRoles.Select(r => r.Id).ToHashSet();
+                availableRoles = allRolesResponse.Data
+                    .Where(r => !userRoleIds.Contains(r.Id))
+                    .ToList();
+            }
+            else
+            {
+                availableRoles = new List<RoleDto>();
+            }
+        }
+        catch (Exception ex)
+        {
+            hasError = true;
+            errorMessage = $"加载数据失败：{ex.Message}";
+            Snackbar.Add(errorMessage, Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task AddRole(int roleId)
+    {
+        if (isSubmitting) return;
+
+        try
+        {
+            isSubmitting = true;
+            StateHasChanged();
+
+            var request = new AssignRoleRequest
+            {
+                UserId = UserId,
+                RoleIds = new List<int> { roleId }
+            };
+
+            var response = await UserRoleApi.AssignRolesAsync(request);
+
+            if (response.Success)
+            {
+                Snackbar.Add("角色分配成功", Severity.Success);
+                await LoadData(); // 重新加载数据
+            }
+            else
+            {
+                Snackbar.Add(response.Message ?? "角色分配失败", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"角色分配失败：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RemoveRole(int roleId)
+    {
+        if (isSubmitting) return;
+
+        try
+        {
+            isSubmitting = true;
+            StateHasChanged();
+
+            var request = new UnassignRoleRequest
+            {
+                UserId = UserId,
+                RoleIds = new List<int> { roleId }
+            };
+
+            var response = await UserRoleApi.UnassignRolesAsync(request);
+
+            if (response.Success)
+            {
+                Snackbar.Add("角色移除成功", Severity.Success);
+                await LoadData(); // 重新加载数据
+            }
+            else
+            {
+                Snackbar.Add(response.Message ?? "角色移除失败", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"角色移除失败：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearAllRoles()
+    {
+        if (isSubmitting || userRoles?.Any() != true) return;
+
+        try
+        {
+            isSubmitting = true;
+            StateHasChanged();
+
+            var request = new ReplaceUserRolesRequest
+            {
+                UserId = UserId,
+                RoleIds = new List<int>() // 空列表表示清空所有角色
+            };
+
+            var response = await UserRoleApi.ReplaceUserRolesAsync(request);
+
+            if (response.Success)
+            {
+                Snackbar.Add("已清空所有角色", Severity.Success);
+                await LoadData(); // 重新加载数据
+            }
+            else
+            {
+                Snackbar.Add(response.Message ?? "清空角色失败", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"清空角色失败：{ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void UpdateBreadcrumbs()
+    {
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new("首页", href: "/", icon: Icons.Material.Filled.Home),
+            new("用户管理", href: "/users", icon: Icons.Material.Filled.People),
+            new($"角色分配 - {currentUser?.Username ?? "用户"}", href: null, disabled: true, icon: Icons.Material.Filled.AdminPanelSettings)
+        };
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/users");
+    }
+
+    private void NavigateToUserDetail()
+    {
+        Navigation.NavigateTo($"/users/{UserId}");
+    }
+}

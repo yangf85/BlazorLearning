@@ -8,12 +8,7 @@
 @inject ITokenService TokenService
 
 <PageTitle>角色管理</PageTitle>
-<MudButton Variant="Variant.Outlined"
-           Color="Color.Info"
-           OnClick="DebugToken"
-           Class="mb-4">
-    调试Token状态
-</MudButton>
+
 <MudContainer MaxWidth="MaxWidth.Large" Class="pa-6">
     <!-- 页面标题 -->
     <MudStack Spacing="4">
@@ -115,6 +110,11 @@
                                                Size="Size.Small"
                                                Title="查看详情"
                                                OnClick="@(() => NavigateToDetail(context.Id))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Groups"
+                                               Color="Color.Secondary"
+                                               Size="Size.Small"
+                                               Title="用户管理"
+                                               OnClick="@(() => ManageRoleUsers(context.Id))" />
                                 <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                                Color="Color.Warning"
                                                Size="Size.Small"
@@ -135,35 +135,12 @@
 </MudContainer>
 
 @code {
-
-    private async Task DebugToken()
+    private void ManageRoleUsers(int roleId)
     {
-        try
-        {
-            Console.WriteLine("[DEBUG] 开始获取Token...");
-
-            var isAuthenticated = await TokenService.IsAuthenticatedAsync();
-            Console.WriteLine($"[DEBUG] 是否已认证: {isAuthenticated}");
-
-            var token = await TokenService.GetTokenAsync();
-            Console.WriteLine($"[DEBUG] Token是否为空: {string.IsNullOrEmpty(token)}");
-
-            if (!string.IsNullOrEmpty(token))
-            {
-                Console.WriteLine($"[DEBUG] Token前10个字符: {token.Substring(0, Math.Min(10, token.Length))}...");
-            }
-
-            var username = await TokenService.GetUsernameAsync();
-            Console.WriteLine($"[DEBUG] 用户名: {username ?? "null"}");
-
-            Snackbar.Add($"Token调试: 认证={isAuthenticated}, Token={(!string.IsNullOrEmpty(token) ? "有值" : "空")}, 用户={username ?? "null"}", Severity.Info);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[DEBUG] Token调试异常: {ex.Message}");
-            Snackbar.Add($"Token调试异常: {ex.Message}", Severity.Error);
-        }
+        Navigation.NavigateTo($"/roles/{roleId}/users");
     }
+
+
 
     // 数据相关
     private List<RoleDto> roles = new();

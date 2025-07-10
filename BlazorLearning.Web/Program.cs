@@ -53,6 +53,14 @@ builder.Services.AddRefitClient<IRoleApi>()
     })
     .AddHttpMessageHandler<AuthHttpMessageHandler>();
 
+builder.Services.AddRefitClient<IUserRoleApi>()
+    .ConfigureHttpClient(c =>
+    {
+        c.BaseAddress = new Uri(apiBaseUrl);
+        c.Timeout = TimeSpan.FromSeconds(30);
+    })
+    .AddHttpMessageHandler<AuthHttpMessageHandler>();
+
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();

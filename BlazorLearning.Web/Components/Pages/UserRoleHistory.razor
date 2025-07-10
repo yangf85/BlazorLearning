@@ -1,0 +1,454 @@
+﻿@page "/user-roles/history"
+@page "/user-roles/history/{UserId:int}"
+@page "/user-roles/history/role/{RoleId:int}"
+@using BlazorLearning.Shared.ApiServices
+@using BlazorLearning.Shared.Dtos
+@using BlazorLearning.Shared.Models
+@inject IUserRoleApi UserRoleApi
+@inject IUserApi UserApi
+@inject IRoleApi RoleApi
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@attribute [Authorize]
+
+<PageTitle>用户角色分配历史</PageTitle>
+
+<!-- 面包屑导航 -->
+<MudBreadcrumbs Items="_breadcrumbItems" Class="mb-4" />
+
+<!-- 页面标题 -->
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-6">
+    <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Large" Color="Color.Primary" />
+    <MudText Typo="Typo.h4">用户角色分配历史</MudText>
+</MudStack>
+
+<!-- 筛选条件 -->
+<MudCard Class="mb-6">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.FilterList" Color="Color.Info" />
+                <MudText Typo="Typo.h6">筛选条件</MudText>
+            </MudStack>
+        </CardHeaderContent>
+    </MudCardHeader>
+    <MudCardContent>
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudSelect T="int?" @bind-Value="selectedUserId"
+                           Label="选择用户"
+                           Clearable="true"
+                           AdornmentIcon="@Icons.Material.Filled.Person"
+                           Adornment="Adornment.Start">
+                    @if (allUsers != null)
+                    {
+                        @foreach (var user in allUsers)
+                        {
+                            <MudSelectItem T="int?" Value="@user.Id">@user.Username (@user.Email)</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudSelect T="int?" @bind-Value="selectedRoleId"
+                           Label="选择角色"
+                           Clearable="true"
+                           AdornmentIcon="@Icons.Material.Filled.AdminPanelSettings"
+                           Adornment="Adornment.Start">
+                    @if (allRoles != null)
+                    {
+                        @foreach (var role in allRoles)
+                        {
+                            <MudSelectItem T="int?" Value="@role.Id">@role.DisplayName (@role.Name)</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="height: 56px;">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Search"
+                               OnClick="LoadHistory"
+                               Disabled="isLoading">
+                        查询历史
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Filled.Clear"
+                               OnClick="ClearFilters">
+                        清空筛选
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Info"
+                               StartIcon="@Icons.Material.Filled.Refresh"
+                               OnClick="RefreshData"
+                               Disabled="isLoading">
+                        刷新
+                    </MudButton>
+                </MudStack>
+            </MudItem>
+        </MudGrid>
+    </MudCardContent>
+</MudCard>
+
+@if (isLoading)
+{
+    <MudStack AlignItems="AlignItems.Center" Class="pa-8">
+        <MudProgressCircular Indeterminate="true" Size="Size.Large" />
+        <MudText Class="mt-2">加载历史记录...</MudText>
+    </MudStack>
+}
+else if (hasError)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">
+        <MudText><strong>加载失败</strong></MudText>
+        <MudText>@errorMessage</MudText>
+        <MudButton Class="mt-2"
+                   Color="Color.Error"
+                   Variant="Variant.Text"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="LoadHistory">
+            重试
+        </MudButton>
+    </MudAlert>
+}
+else if (!historyRecords.Any())
+{
+    <MudPaper Class="pa-8" Outlined="true">
+        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.HistoryToggleOff" Size="Size.Large" Color="Color.Default" />
+            <MudText Typo="Typo.h6">没有找到历史记录</MudText>
+            <MudText>
+                @if (HasActiveFilters)
+                {
+                    <span>当前筛选条件下没有历史记录，请尝试调整筛选条件。</span>
+                }
+                else
+                {
+                    <span>系统中暂无用户角色分配历史记录。</span>
+                }
+            </MudText>
+            @if (HasActiveFilters)
+            {
+                <MudButton Color="Color.Primary"
+                           Variant="Variant.Text"
+                           OnClick="ClearFilters">
+                    清空筛选条件
+                </MudButton>
+            }
+        </MudStack>
+    </MudPaper>
+}
+else
+{
+    <!-- 统计信息 -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText>
+            @if (HasActiveFilters)
+            {
+                <span>找到 @historyRecords.Count 条历史记录</span>
+            }
+            else
+            {
+                <span>共 @historyRecords.Count 条历史记录</span>
+            }
+        </MudText>
+        <MudSpacer />
+        <MudChip T="string" Color="Color.Info" Icon="@Icons.Material.Filled.Timeline">
+            最近更新：@(historyRecords.FirstOrDefault()?.AssignedAt.ToString("yyyy-MM-dd HH:mm") ?? "无")
+        </MudChip>
+    </MudStack>
+
+    <!-- 历史记录时间线 -->
+    <MudTimeline TimelineOrientation="TimelineOrientation.Vertical">
+        @foreach (var record in historyRecords.OrderByDescending(r => r.AssignedAt))
+        {
+            <MudTimelineItem Color="@GetTimelineColor(record)" Icon="@GetTimelineIcon(record)" Variant="Variant.Filled">
+                <ItemContent>
+                    <MudCard Outlined="true" Class="mb-3">
+                        <MudCardContent>
+                            <MudStack Spacing="2">
+                                <!-- 操作描述 -->
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                                    <MudAvatar Color="Color.Primary" Size="Size.Small">
+                                        @record.Username.Substring(0, 1).ToUpper()
+                                    </MudAvatar>
+                                    <div style="flex-grow: 1;">
+                                        <MudText Typo="Typo.subtitle1">
+                                            <strong>@record.Username</strong> 被分配了角色 <strong>@record.RoleName</strong>
+                                        </MudText>
+                                        <MudText Typo="Typo.body2">
+                                            操作人：@record.AssignedByUsername
+                                        </MudText>
+                                    </div>
+                                    <MudStack AlignItems="AlignItems.End" Spacing="1">
+                                        <MudText Typo="Typo.caption">
+                                            @record.AssignedAt.ToString("yyyy-MM-dd")
+                                        </MudText>
+                                        <MudText Typo="Typo.caption">
+                                            @record.AssignedAt.ToString("HH:mm:ss")
+                                        </MudText>
+                                    </MudStack>
+                                </MudStack>
+
+                                <!-- 详细信息 -->
+                                <MudDivider />
+                                <MudGrid>
+                                    <MudItem xs="6" md="3">
+                                        <MudStack Spacing="1">
+                                            <MudText Typo="Typo.caption">记录ID</MudText>
+                                            <MudText Typo="Typo.body2">#@record.Id</MudText>
+                                        </MudStack>
+                                    </MudItem>
+                                    <MudItem xs="6" md="3">
+                                        <MudStack Spacing="1">
+                                            <MudText Typo="Typo.caption">用户ID</MudText>
+                                            <MudText Typo="Typo.body2">@record.UserId</MudText>
+                                        </MudStack>
+                                    </MudItem>
+                                    <MudItem xs="6" md="3">
+                                        <MudStack Spacing="1">
+                                            <MudText Typo="Typo.caption">角色ID</MudText>
+                                            <MudText Typo="Typo.body2">@record.RoleId</MudText>
+                                        </MudStack>
+                                    </MudItem>
+                                    <MudItem xs="6" md="3">
+                                        <MudStack Spacing="1">
+                                            <MudText Typo="Typo.caption">状态</MudText>
+                                            <MudChip T="string"
+                                                     Color="@(record.IsActive ? Color.Success : Color.Error)"
+                                                     Size="Size.Small">
+                                                @(record.IsActive ? "有效" : "已撤销")
+                                            </MudChip>
+                                        </MudStack>
+                                    </MudItem>
+                                </MudGrid>
+
+                                <!-- 操作按钮 -->
+                                <MudDivider />
+                                <MudStack Row="true" Spacing="2">
+                                    <MudButton Variant="Variant.Text"
+                                               Color="Color.Primary"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.Person"
+                                               OnClick="() => NavigateToUser(record.UserId)">
+                                        查看用户
+                                    </MudButton>
+                                    <MudButton Variant="Variant.Text"
+                                               Color="Color.Secondary"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.AdminPanelSettings"
+                                               OnClick="() => NavigateToRole(record.RoleId)">
+                                        查看角色
+                                    </MudButton>
+                                    <MudButton Variant="Variant.Text"
+                                               Color="Color.Info"
+                                               Size="Size.Small"
+                                               StartIcon="@Icons.Material.Filled.ManageAccounts"
+                                               OnClick="() => NavigateToUserRoles(record.UserId)">
+                                        管理用户角色
+                                    </MudButton>
+                                </MudStack>
+                            </MudStack>
+                        </MudCardContent>
+                    </MudCard>
+                </ItemContent>
+            </MudTimelineItem>
+        }
+    </MudTimeline>
+
+    <!-- 加载更多按钮（如果记录很多的话） -->
+    @if (historyRecords.Count >= 50)
+    {
+        <MudStack AlignItems="AlignItems.Center" Class="mt-6">
+            <MudText Typo="Typo.body2">仅显示最近 50 条记录</MudText>
+            <MudText Typo="Typo.caption">如需查看更多历史记录，请使用筛选条件</MudText>
+        </MudStack>
+    }
+}
+
+@code {
+    [Parameter] public int? UserId { get; set; }
+    [Parameter] public int? RoleId { get; set; }
+
+    private List<UserRoleDetailResponse> historyRecords = new();
+    private List<UserDto>? allUsers;
+    private List<RoleDto>? allRoles;
+
+    private int? selectedUserId;
+    private int? selectedRoleId;
+
+    private bool isLoading = true;
+    private bool hasError = false;
+    private string errorMessage = string.Empty;
+
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+
+    private bool HasActiveFilters => selectedUserId.HasValue || selectedRoleId.HasValue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 从路由参数设置初始筛选条件
+        if (UserId.HasValue)
+        {
+            selectedUserId = UserId.Value;
+        }
+        if (RoleId.HasValue)
+        {
+            selectedRoleId = RoleId.Value;
+        }
+
+        await LoadBasicData();
+        await LoadHistory();
+        UpdateBreadcrumbs();
+    }
+
+    private async Task LoadBasicData()
+    {
+        try
+        {
+            var usersTask = UserApi.GetAllUsersAsync();
+            var rolesTask = RoleApi.GetAllRolesAsync();
+
+            await Task.WhenAll(usersTask, rolesTask);
+
+            var usersResponse = await usersTask;
+            var rolesResponse = await rolesTask;
+
+            if (usersResponse.Success && usersResponse.Data != null)
+            {
+                allUsers = usersResponse.Data.Where(u => u.IsActive).ToList();
+            }
+
+            if (rolesResponse.Success && rolesResponse.Data != null)
+            {
+                allRoles = rolesResponse.Data.Where(r => r.IsActive).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"加载基础数据失败：{ex.Message}", Severity.Warning);
+        }
+    }
+
+    private async Task LoadHistory()
+    {
+        try
+        {
+            isLoading = true;
+            hasError = false;
+            StateHasChanged();
+
+            var response = await UserRoleApi.GetUserRoleDetailsAsync(selectedUserId, selectedRoleId);
+
+            if (response.Success && response.Data != null)
+            {
+                historyRecords = response.Data;
+                Snackbar.Add($"成功加载 {historyRecords.Count} 条历史记录", Severity.Success);
+            }
+            else
+            {
+                hasError = true;
+                errorMessage = response.Message ?? "加载历史记录失败";
+                Snackbar.Add(errorMessage, Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            hasError = true;
+            errorMessage = $"系统错误：{ex.Message}";
+            Snackbar.Add(errorMessage, Severity.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadBasicData();
+        await LoadHistory();
+    }
+
+    private void ClearFilters()
+    {
+        selectedUserId = null;
+        selectedRoleId = null;
+        // 清空筛选后重新加载
+        _ = LoadHistory();
+    }
+
+    private Color GetTimelineColor(UserRoleDetailResponse record)
+    {
+        if (!record.IsActive) return Color.Error;
+
+        var daysSinceAssigned = (DateTime.UtcNow - record.AssignedAt).Days;
+        return daysSinceAssigned switch
+        {
+            <= 1 => Color.Success,
+            <= 7 => Color.Info,
+            <= 30 => Color.Warning,
+            _ => Color.Default
+        };
+    }
+
+    private string GetTimelineIcon(UserRoleDetailResponse record)
+    {
+        if (!record.IsActive) return Icons.Material.Filled.Cancel;
+
+        var daysSinceAssigned = (DateTime.UtcNow - record.AssignedAt).Days;
+        return daysSinceAssigned switch
+        {
+            <= 1 => Icons.Material.Filled.NewReleases,
+            <= 7 => Icons.Material.Filled.FiberNew,
+            <= 30 => Icons.Material.Filled.Update,
+            _ => Icons.Material.Filled.History
+        };
+    }
+
+    private void UpdateBreadcrumbs()
+    {
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new("首页", href: "/", icon: Icons.Material.Filled.Home),
+            new("用户角色分配历史", href: null, disabled: true, icon: Icons.Material.Filled.History)
+        };
+
+        if (selectedUserId.HasValue)
+        {
+            var user = allUsers?.FirstOrDefault(u => u.Id == selectedUserId.Value);
+            _breadcrumbItems.Insert(1, new("用户管理", href: "/users", icon: Icons.Material.Filled.People));
+            if (user != null)
+            {
+                _breadcrumbItems[2] = new($"{user.Username} 的角色历史", href: null, disabled: true, icon: Icons.Material.Filled.History);
+            }
+        }
+        else if (selectedRoleId.HasValue)
+        {
+            var role = allRoles?.FirstOrDefault(r => r.Id == selectedRoleId.Value);
+            _breadcrumbItems.Insert(1, new("角色管理", href: "/roles", icon: Icons.Material.Filled.AdminPanelSettings));
+            if (role != null)
+            {
+                _breadcrumbItems[2] = new($"{role.DisplayName} 的分配历史", href: null, disabled: true, icon: Icons.Material.Filled.History);
+            }
+        }
+    }
+
+    private void NavigateToUser(int userId)
+    {
+        Navigation.NavigateTo($"/users/{userId}");
+    }
+
+    private void NavigateToRole(int roleId)
+    {
+        Navigation.NavigateTo($"/roles/{roleId}");
+    }
+
+    private void NavigateToUserRoles(int userId)
+    {
+        Navigation.NavigateTo($"/users/{userId}/roles");
+    }
+}
